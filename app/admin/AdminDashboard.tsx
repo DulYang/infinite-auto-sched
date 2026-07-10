@@ -129,7 +129,10 @@ export default function AdminDashboard() {
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <StatusBadge status={booking.status} />
+                  <div className="flex flex-col gap-1 items-start">
+                    <StatusBadge status={booking.status} />
+                    <WhatsAppBadge booking={booking} />
+                  </div>
                 </td>
                 <td className="px-4 py-3">₱{booking.amount_due}</td>
                 <td className="px-4 py-3 text-right">
@@ -171,6 +174,36 @@ export default function AdminDashboard() {
         />
       )}
     </div>
+  );
+}
+
+export function latestWhatsAppLog(booking: BookingWithRelations) {
+  const logs = booking.whatsapp_logs ?? [];
+  if (logs.length === 0) return null;
+  return [...logs].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )[0];
+}
+
+function WhatsAppBadge({ booking }: { booking: BookingWithRelations }) {
+  const log = latestWhatsAppLog(booking);
+  if (!log) return null;
+
+  const styles: Record<string, string> = {
+    sent: "bg-emerald-100 text-emerald-800",
+    failed: "bg-red-100 text-red-700",
+    pending: "bg-neutral-100 text-neutral-600",
+  };
+  const label: Record<string, string> = {
+    sent: "WhatsApp Sent",
+    failed: "WhatsApp Failed",
+    pending: "WhatsApp Draft Ready",
+  };
+
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[log.send_status] ?? "bg-neutral-100 text-neutral-600"}`}>
+      {label[log.send_status] ?? log.send_status}
+    </span>
   );
 }
 

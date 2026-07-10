@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("bookings")
-    .select("*, court:courts(*), slot:time_slots(*)")
+    .select("*, court:courts(*), slot:time_slots(*), whatsapp_logs(*)")
     .order("created_at", { ascending: false });
 
   if (date) query = query.eq("booking_date", date);

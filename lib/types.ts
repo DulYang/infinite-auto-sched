@@ -37,6 +37,7 @@ export interface Booking {
 export interface BookingWithRelations extends Booking {
   court: Court | null;
   slot: TimeSlot | null;
+  whatsapp_logs?: WhatsAppLog[];
 }
 
 export interface WhatsAppLog {

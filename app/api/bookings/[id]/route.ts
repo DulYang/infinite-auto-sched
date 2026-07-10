@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { writeAuditLog } from "@/lib/bookings/audit";
+import { draftWhatsAppMessage } from "@/lib/bookings/template";
+import { isValidE164 } from "@/lib/bookings/phone";
 
 export async function GET(
   request: NextRequest,
@@ -11,7 +13,7 @@ export async function GET(
 
   const { data: booking, error } = await supabase
     .from("bookings")
-    .select("*, court:courts(*), slot:time_slots(*)")
+    .select("*, court:courts(*), slot:time_slots(*), whatsapp_logs(*)")
     .eq("id", id)
     .maybeSingle();
 
@@ -76,7 +78,7 @@ export async function PATCH(
     .from("bookings")
     .update(updates)
     .eq("id", id)
-    .select("*, court:courts(*), slot:time_slots(*)")
+    .select("*, court:courts(*), slot:time_slots(*), whatsapp_logs(*)")
     .single();
 
   if (error) {
@@ -90,6 +92,44 @@ export async function PATCH(
     details: { before: existing.status, after: booking.status },
     performedBy: "admin",
   });
+
+  if (action === "confirm" && booking.court && booking.slot) {
+    const draft = draftWhatsAppMessage({
+      clientName: booking.client_name,
+      courtName: booking.court.name,
+      slotLabel: booking.slot.label,
+      startTime: booking.slot.start_time,
+      endTime: booking.slot.end_time,
+      bookingDate: booking.booking_date,
+      amountDue: booking.amount_due,
+    });
+
+    const { data: log } = await supabase
+      .from("whatsapp_logs")
+      .insert({
+        booking_id: booking.id,
+        recipient_phone: booking.client_phone,
+        message_body: draft,
+        send_status: "pending",
+        message_draft: draft,
+        message_draft_source: "template_engine",
+        message_draft_confidence: isValidE164(booking.client_phone) ? 0.99 : 0.5,
+        message_draft_review_status: "unreviewed",
+      })
+      .select("*")
+      .single();
+
+    if (log) {
+      await writeAuditLog(supabase, {
+        action: "whatsapp.drafted",
+        entityType: "whatsapp_log",
+        entityId: log.id,
+        details: { booking_id: booking.id },
+        performedBy: "system",
+      });
+      booking.whatsapp_logs = [log];
+    }
+  }
 
   return NextResponse.json({ booking });
 }
