@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BookingWithRelations } from "@/lib/types";
 import { formatDisplayDate, formatTime } from "@/lib/bookings/date";
+import { formatCurrency } from "@/lib/bookings/currency";
 import BookingDetailPanel from "./BookingDetailPanel";
 
 type LoadState = "loading" | "ready" | "error";
@@ -195,7 +196,7 @@ export default function AdminDashboard() {
                       <WhatsAppBadge booking={booking} />
                     </div>
                   </td>
-                  <td className="px-4 py-3">₱{booking.amount_due}</td>
+                  <td className="px-4 py-3">{formatCurrency(booking.amount_due)}</td>
                   <td className="px-4 py-3 text-right">
                     {booking.status === "pending_payment" ? (
                       <button

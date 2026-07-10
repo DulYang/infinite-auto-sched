@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { BookingWithRelations, WhatsAppLog } from "@/lib/types";
 import { formatDisplayDate, formatTime } from "@/lib/bookings/date";
+import { formatCurrency } from "@/lib/bookings/currency";
 import { StatusBadge, latestWhatsAppLog } from "./AdminDashboard";
 
 type LogLoadState = "loading" | "ready" | "error";
@@ -119,7 +120,7 @@ export default function BookingDetailPanel({
               }
             />
             <Row label="Date" value={formatDisplayDate(booking.booking_date)} />
-            <Row label="Amount Due" value={`₱${booking.amount_due}`} />
+            <Row label="Amount Due" value={formatCurrency(booking.amount_due)} />
             {booking.payment_confirmed_at && (
               <Row
                 label="Payment Confirmed"

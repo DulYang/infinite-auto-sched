@@ -87,20 +87,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Court not found." }, { status: 400 });
   }
 
-  const { data: booking, error } = await supabase
-    .from("bookings")
-    .insert({
-      court_id: courtId,
-      slot_id: slotId,
-      booking_date: bookingDate,
-      client_name: clientName.trim(),
-      client_phone: clientPhone.trim(),
-      status: "pending_payment",
-      amount_due: 500,
-      notes: notes?.trim() || null,
-    })
-    .select("*, court:courts(*), slot:time_slots(*)")
-    .single();
+  // Public clients have no SELECT access to bookings (locked down in
+  // 0002/0004), so creation goes through a security-definer RPC that can
+  // insert and return the new row without needing a table-level SELECT
+  // policy for anon.
+  const { data: booking, error } = await supabase.rpc("create_booking", {
+    p_court_id: courtId,
+    p_slot_id: slotId,
+    p_booking_date: bookingDate,
+    p_client_name: clientName.trim(),
+    p_client_phone: clientPhone.trim(),
+    p_notes: notes?.trim() || null,
+    p_amount_due: 350000,
+  });
 
   if (error) {
     if (error.code === "23505") {

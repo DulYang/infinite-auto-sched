@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatDisplayDate, formatTime } from "@/lib/bookings/date";
-import type { BookingWithRelations } from "@/lib/types";
+import { formatCurrency } from "@/lib/bookings/currency";
+import type { Booking, Court, TimeSlot } from "@/lib/types";
 
 export default async function BookingConfirmedPage({
   params,
@@ -12,15 +13,20 @@ export default async function BookingConfirmedPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: booking } = await supabase
-    .from("bookings")
-    .select("*, court:courts(*), slot:time_slots(*)")
-    .eq("id", id)
-    .maybeSingle<BookingWithRelations>();
+  // Bookings SELECT is admin-only; a just-booked client looks up their own
+  // booking (by unguessable uuid) through this security-definer RPC instead.
+  const { data: booking } = (await supabase.rpc("get_booking_by_id", {
+    p_id: id,
+  })) as { data: Booking | null };
 
   if (!booking) {
     notFound();
   }
+
+  const [{ data: court }, { data: slot }] = await Promise.all([
+    supabase.from("courts").select("*").eq("id", booking.court_id).maybeSingle<Court>(),
+    supabase.from("time_slots").select("*").eq("id", booking.slot_id).maybeSingle<TimeSlot>(),
+  ]);
 
   return (
     <div className="max-w-lg mx-auto px-4 py-10">
@@ -33,20 +39,16 @@ export default async function BookingConfirmedPage({
       </div>
 
       <dl className="mt-6 divide-y divide-neutral-200 rounded-lg border border-neutral-200 bg-white text-sm">
-        <Row label="Court" value={booking.court?.name ?? "—"} />
-        <Row label="Time Slot" value={booking.slot?.label ?? "—"} />
+        <Row label="Court" value={court?.name ?? "—"} />
+        <Row label="Time Slot" value={slot?.label ?? "—"} />
         <Row
           label="Time"
-          value={
-            booking.slot
-              ? `${formatTime(booking.slot.start_time)} – ${formatTime(booking.slot.end_time)}`
-              : "—"
-          }
+          value={slot ? `${formatTime(slot.start_time)} – ${formatTime(slot.end_time)}` : "—"}
         />
         <Row label="Date" value={formatDisplayDate(booking.booking_date)} />
         <Row label="Name" value={booking.client_name} />
         <Row label="Phone" value={booking.client_phone} />
-        <Row label="Amount Due" value={`₱${booking.amount_due}`} />
+        <Row label="Amount Due" value={formatCurrency(booking.amount_due)} />
         <Row label="Status" value={<StatusBadge status={booking.status} />} />
       </dl>
 
