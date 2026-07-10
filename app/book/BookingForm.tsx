@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Court, TimeSlot, BookingWithRelations } from "@/lib/types";
+import type { Court, TimeSlot } from "@/lib/types";
 import { isValidE164, PHONE_FORMAT_ERROR } from "@/lib/bookings/phone";
 import { todayInputValue, tomorrowInputValue, formatTime } from "@/lib/bookings/date";
 
@@ -64,13 +64,10 @@ export default function BookingForm() {
     setGridState("loading");
     setGridError(null);
     try {
-      const res = await fetch(`/api/bookings?date=${date}&courtId=${courtId}`);
+      const res = await fetch(`/api/availability?date=${date}&courtId=${courtId}`);
       if (!res.ok) throw new Error("Failed to load slot availability.");
       const data = await res.json();
-      const taken = new Set<string>(
-        (data.bookings ?? []).map((b: BookingWithRelations) => b.slot_id),
-      );
-      setTakenSlotIds(taken);
+      setTakenSlotIds(new Set<string>(data.takenSlotIds ?? []));
       setGridState("ready");
     } catch (err) {
       setGridError(err instanceof Error ? err.message : "Something went wrong.");

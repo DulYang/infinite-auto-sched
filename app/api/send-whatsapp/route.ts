@@ -1,10 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/supabase/requireUser";
 import { writeAuditLog } from "@/lib/bookings/audit";
 import { isValidE164, PHONE_FORMAT_ERROR } from "@/lib/bookings/phone";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/send";
 
 export async function POST(request: NextRequest) {
+  const user = await requireUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const supabase = await createClient();
   const body = await request.json().catch(() => null);
   const logId = body?.logId as string | undefined;
