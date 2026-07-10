@@ -20,12 +20,12 @@ export async function writeAuditLog(
 }
 
 export const AUDIT_LABELS: Record<string, string> = {
-  "booking.created": "Booking created",
-  "booking.confirmed": "Payment confirmed",
-  "booking.completed": "Booking marked completed",
-  "whatsapp.drafted": "WhatsApp draft generated",
-  "whatsapp.sent": "WhatsApp message sent",
-  "whatsapp.failed": "WhatsApp send failed",
+  "booking.created": "Pemesanan dibuat",
+  "booking.confirmed": "Pembayaran dikonfirmasi",
+  "booking.completed": "Pemesanan ditandai selesai",
+  "whatsapp.drafted": "Draf WhatsApp dibuat",
+  "whatsapp.sent": "Pesan WhatsApp terkirim",
+  "whatsapp.failed": "Pengiriman WhatsApp gagal",
 };
 
 export function labelForAction(action: string): string {

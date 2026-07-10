@@ -39,7 +39,7 @@ export default function BookingForm() {
           fetch("/api/courts"),
           fetch("/api/time-slots"),
         ]);
-        if (!courtsRes.ok || !slotsRes.ok) throw new Error("Failed to load courts and time slots.");
+        if (!courtsRes.ok || !slotsRes.ok) throw new Error("Gagal memuat lapangan dan slot waktu.");
         const courtsData = await courtsRes.json();
         const slotsData = await slotsRes.json();
         if (cancelled) return;
@@ -49,7 +49,7 @@ export default function BookingForm() {
         setStaticState("ready");
       } catch (err) {
         if (cancelled) return;
-        setStaticError(err instanceof Error ? err.message : "Something went wrong.");
+        setStaticError(err instanceof Error ? err.message : "Terjadi kesalahan.");
         setStaticState("error");
       }
     }
@@ -65,12 +65,12 @@ export default function BookingForm() {
     setGridError(null);
     try {
       const res = await fetch(`/api/availability?date=${date}&courtId=${courtId}`);
-      if (!res.ok) throw new Error("Failed to load slot availability.");
+      if (!res.ok) throw new Error("Gagal memuat ketersediaan slot.");
       const data = await res.json();
       setTakenSlotIds(new Set<string>(data.takenSlotIds ?? []));
       setGridState("ready");
     } catch (err) {
-      setGridError(err instanceof Error ? err.message : "Something went wrong.");
+      setGridError(err instanceof Error ? err.message : "Terjadi kesalahan.");
       setGridState("error");
     }
   }, [courtId, date]);
@@ -86,11 +86,11 @@ export default function BookingForm() {
     setPhoneError(null);
 
     if (!selectedSlotId) {
-      setSubmitError("Please select an available time slot.");
+      setSubmitError("Silakan pilih slot waktu yang tersedia.");
       return;
     }
     if (!clientName.trim()) {
-      setSubmitError("Please enter your name.");
+      setSubmitError("Silakan masukkan nama Anda.");
       return;
     }
     if (!isValidE164(clientPhone)) {
@@ -114,7 +114,7 @@ export default function BookingForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setSubmitError(data.error ?? "Something went wrong.");
+        setSubmitError(data.error ?? "Terjadi kesalahan.");
         if (res.status === 409) {
           loadGrid();
         }
@@ -122,7 +122,7 @@ export default function BookingForm() {
       }
       router.push(`/book/confirmed/${data.booking.id}`);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Something went wrong.");
+      setSubmitError(err instanceof Error ? err.message : "Terjadi kesalahan.");
     } finally {
       setSubmitting(false);
     }
@@ -139,7 +139,7 @@ export default function BookingForm() {
   if (staticState === "error") {
     return (
       <div className="rounded border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
-        {staticError ?? "Couldn't load the booking form."}
+        {staticError ?? "Formulir pemesanan gagal dimuat."}
       </div>
     );
   }
@@ -147,7 +147,7 @@ export default function BookingForm() {
   if (courts.length === 0) {
     return (
       <div className="rounded border border-neutral-200 bg-white px-4 py-6 text-center text-neutral-500 text-sm">
-        No courts are available for booking right now. Please check back later.
+        Tidak ada lapangan yang tersedia untuk dipesan saat ini. Silakan coba lagi nanti.
       </div>
     );
   }
@@ -157,7 +157,7 @@ export default function BookingForm() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="date">
-            Date
+            Tanggal
           </label>
           <input
             id="date"
@@ -170,7 +170,7 @@ export default function BookingForm() {
         </div>
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="court">
-            Court
+            Lapangan
           </label>
           <select
             id="court"
@@ -188,7 +188,7 @@ export default function BookingForm() {
       </div>
 
       <div>
-        <p className="block text-sm font-medium mb-2">Time Slot</p>
+        <p className="block text-sm font-medium mb-2">Slot Waktu</p>
         {gridState === "loading" && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -198,12 +198,12 @@ export default function BookingForm() {
         )}
         {gridState === "error" && (
           <div className="rounded border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
-            {gridError ?? "Couldn't load slot availability."}
+            {gridError ?? "Ketersediaan slot gagal dimuat."}
           </div>
         )}
         {gridState === "ready" && timeSlots.length === 0 && (
           <div className="rounded border border-neutral-200 bg-white px-4 py-6 text-center text-neutral-500 text-sm">
-            No time slots configured yet.
+            Belum ada slot waktu yang diatur.
           </div>
         )}
         {gridState === "ready" && timeSlots.length > 0 && (
@@ -230,7 +230,7 @@ export default function BookingForm() {
                   <div className="text-xs opacity-80">
                     {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
                   </div>
-                  <div className="text-xs mt-1 opacity-80">{taken ? "Taken" : "Available"}</div>
+                  <div className="text-xs mt-1 opacity-80">{taken ? "Terisi" : "Tersedia"}</div>
                 </button>
               );
             })}
@@ -241,20 +241,20 @@ export default function BookingForm() {
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="clientName">
-            Your Name
+            Nama Anda
           </label>
           <input
             id="clientName"
             type="text"
             value={clientName}
             onChange={(e) => setClientName(e.target.value)}
-            placeholder="Juan dela Cruz"
+            placeholder="Budi Santoso"
             className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="clientPhone">
-            Phone Number
+            Nomor Telepon
           </label>
           <input
             id="clientPhone"
@@ -267,14 +267,14 @@ export default function BookingForm() {
             onBlur={() => {
               if (clientPhone && !isValidE164(clientPhone)) setPhoneError(PHONE_FORMAT_ERROR);
             }}
-            placeholder="+639991234567"
+            placeholder="+6281234567890"
             className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
           />
           {phoneError && <p className="text-xs text-red-600 mt-1">{phoneError}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="notes">
-            Notes (optional)
+            Catatan (opsional)
           </label>
           <textarea
             id="notes"
@@ -297,7 +297,7 @@ export default function BookingForm() {
         disabled={submitting || !selectedSlotId}
         className="w-full rounded bg-neutral-900 text-white font-medium py-2.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-neutral-800 transition"
       >
-        {submitting ? "Submitting…" : "Book This Slot"}
+        {submitting ? "Mengirim…" : "Pesan Slot Ini"}
       </button>
     </form>
   );

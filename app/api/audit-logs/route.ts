@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/supabase/requireUser";
 export async function GET() {
   const user = await requireUser();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Tidak diotorisasi" }, { status: 401 });
   }
 
   const supabase = await createClient();

@@ -8,7 +8,7 @@ import { sendWhatsAppMessage } from "@/lib/whatsapp/send";
 export async function POST(request: NextRequest) {
   const user = await requireUser();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Tidak diotorisasi" }, { status: 401 });
   }
 
   const supabase = await createClient();
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   const messageBody = body?.messageBody as string | undefined;
 
   if (!logId || !messageBody?.trim()) {
-    return NextResponse.json({ error: "logId and messageBody are required." }, { status: 400 });
+    return NextResponse.json({ error: "logId dan messageBody wajib diisi." }, { status: 400 });
   }
 
   const { data: log, error: fetchError } = await supabase
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: fetchError.message }, { status: 500 });
   }
   if (!log) {
-    return NextResponse.json({ error: "WhatsApp log not found." }, { status: 404 });
+    return NextResponse.json({ error: "Log WhatsApp tidak ditemukan." }, { status: 404 });
   }
 
   if (!isValidE164(log.recipient_phone)) {
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     : {
         message_body: messageBody.trim(),
         send_status: "failed" as const,
-        error_message: result.error ?? "WhatsApp send failed.",
+        error_message: result.error ?? "Pengiriman WhatsApp gagal.",
       };
 
   const { data: updated, error: updateError } = await supabase

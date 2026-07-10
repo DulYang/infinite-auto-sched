@@ -37,9 +37,9 @@ function LoginForm() {
 
   return (
     <div className="max-w-sm mx-auto px-4 py-16">
-      <h1 className="text-2xl font-bold tracking-tight mb-1">Admin Login</h1>
+      <h1 className="text-2xl font-bold tracking-tight mb-1">Masuk Admin</h1>
       <p className="text-neutral-500 mb-6 text-sm">
-        Sign in to manage bookings and send WhatsApp confirmations.
+        Masuk untuk mengelola pemesanan dan mengirim konfirmasi WhatsApp.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -58,7 +58,7 @@ function LoginForm() {
         </div>
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="password">
-            Password
+            Kata Sandi
           </label>
           <input
             id="password"
@@ -81,7 +81,7 @@ function LoginForm() {
           disabled={submitting}
           className="w-full rounded bg-neutral-900 text-white font-medium py-2.5 text-sm disabled:opacity-40 hover:bg-neutral-800 transition"
         >
-          {submitting ? "Signing in…" : "Sign In"}
+          {submitting ? "Sedang masuk…" : "Masuk"}
         </button>
       </form>
     </div>

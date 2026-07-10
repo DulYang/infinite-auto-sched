@@ -17,12 +17,12 @@ export default function AuditLogViewer() {
     setError(null);
     try {
       const res = await fetch("/api/audit-logs");
-      if (!res.ok) throw new Error("Failed to load audit log.");
+      if (!res.ok) throw new Error("Gagal memuat log audit.");
       const data = await res.json();
       setLogs(data.auditLogs ?? []);
       setState("ready");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan.");
       setState("error");
     }
   }, []);
@@ -37,7 +37,7 @@ export default function AuditLogViewer() {
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium"
       >
-        <span>Audit Log (last 50 actions)</span>
+        <span>Log Audit (50 aksi terakhir)</span>
         <span className="text-neutral-400">{open ? "▲" : "▼"}</span>
       </button>
 
@@ -55,14 +55,14 @@ export default function AuditLogViewer() {
             <div className="p-4 text-sm text-red-700 flex items-center justify-between">
               <span>{error}</span>
               <button onClick={load} className="underline font-medium">
-                Retry
+                Coba lagi
               </button>
             </div>
           )}
 
           {state === "ready" && logs.length === 0 && (
             <div className="p-4 text-sm text-neutral-500 text-center">
-              No audit history yet.
+              Belum ada riwayat audit.
             </div>
           )}
 
@@ -72,10 +72,13 @@ export default function AuditLogViewer() {
                 <li key={log.id} className="px-4 py-2.5 text-sm flex items-center justify-between gap-4">
                   <div>
                     <span className="font-medium">{labelForAction(log.action)}</span>
-                    <span className="text-neutral-400"> · by {log.performed_by ?? "system"}</span>
+                    <span className="text-neutral-400">
+                      {" "}
+                      · oleh {log.performed_by === "system" ? "sistem" : (log.performed_by ?? "sistem")}
+                    </span>
                   </div>
                   <span className="text-xs text-neutral-400 whitespace-nowrap">
-                    {new Date(log.created_at).toLocaleString()}
+                    {new Date(log.created_at).toLocaleString("id-ID")}
                   </span>
                 </li>
               ))}

@@ -5,4 +5,4 @@ export function isValidE164(phone: string): boolean {
 }
 
 export const PHONE_FORMAT_ERROR =
-  "Enter phone in international format, e.g. +639991234567";
+  "Masukkan nomor telepon dalam format internasional, contoh: +6281234567890";

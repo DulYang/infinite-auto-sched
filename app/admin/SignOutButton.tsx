@@ -22,7 +22,7 @@ export default function SignOutButton() {
       disabled={signingOut}
       className="text-xs text-neutral-500 hover:text-neutral-800 underline disabled:opacity-40"
     >
-      {signingOut ? "Signing out…" : "Sign out"}
+      {signingOut ? "Sedang keluar…" : "Keluar"}
     </button>
   );
 }

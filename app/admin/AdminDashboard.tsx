@@ -29,12 +29,12 @@ export default function AdminDashboard() {
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
       const res = await fetch(`/api/bookings?${params.toString()}`);
-      if (!res.ok) throw new Error("Failed to load bookings.");
+      if (!res.ok) throw new Error("Gagal memuat pemesanan.");
       const data = await res.json();
       setBookings(data.bookings ?? []);
       setState("ready");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan.");
       setState("error");
     }
   }, [statusFilter, fromDate, toDate]);
@@ -53,12 +53,12 @@ export default function AdminDashboard() {
         body: JSON.stringify({ action: "confirm" }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to confirm payment.");
+      if (!res.ok) throw new Error(data.error ?? "Gagal mengonfirmasi pembayaran.");
       setBookings((prev) => prev.map((b) => (b.id === bookingId ? data.booking : b)));
     } catch (err) {
       setRowError((prev) => ({
         ...prev,
-        [bookingId]: err instanceof Error ? err.message : "Something went wrong.",
+        [bookingId]: err instanceof Error ? err.message : "Terjadi kesalahan.",
       }));
     } finally {
       setConfirmingId(null);
@@ -81,15 +81,15 @@ export default function AdminDashboard() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded border border-neutral-300 px-2.5 py-1.5 text-sm"
           >
-            <option value="all">All</option>
-            <option value="pending_payment">Pending Payment</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="completed">Completed</option>
+            <option value="all">Semua</option>
+            <option value="pending_payment">Menunggu Pembayaran</option>
+            <option value="confirmed">Terkonfirmasi</option>
+            <option value="completed">Selesai</option>
           </select>
         </div>
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1" htmlFor="fromDate">
-            From
+            Dari
           </label>
           <input
             id="fromDate"
@@ -101,7 +101,7 @@ export default function AdminDashboard() {
         </div>
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1" htmlFor="toDate">
-            To
+            Sampai
           </label>
           <input
             id="toDate"
@@ -120,7 +120,7 @@ export default function AdminDashboard() {
             }}
             className="text-sm text-neutral-500 hover:text-neutral-800 underline pb-1.5"
           >
-            Clear filters
+            Hapus filter
           </button>
         )}
       </div>
@@ -137,7 +137,7 @@ export default function AdminDashboard() {
         <div className="rounded border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm flex items-center justify-between">
           <span>{error}</span>
           <button onClick={load} className="underline font-medium">
-            Retry
+            Coba lagi
           </button>
         </div>
       )}
@@ -145,8 +145,8 @@ export default function AdminDashboard() {
       {state === "ready" && bookings.length === 0 && (
         <div className="rounded border border-neutral-200 bg-white px-4 py-10 text-center text-neutral-500 text-sm">
           {hasActiveFilters
-            ? "No bookings match these filters."
-            : "No bookings yet. Share the booking link with your clients."}
+            ? "Tidak ada pemesanan yang cocok dengan filter ini."
+            : "Belum ada pemesanan. Bagikan tautan pemesanan kepada klien Anda."}
         </div>
       )}
 
@@ -155,13 +155,13 @@ export default function AdminDashboard() {
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-left text-neutral-500 text-xs uppercase tracking-wide">
               <tr>
-                <th className="px-4 py-2.5 font-medium">Client</th>
-                <th className="px-4 py-2.5 font-medium">Court</th>
-                <th className="px-4 py-2.5 font-medium">Date</th>
+                <th className="px-4 py-2.5 font-medium">Klien</th>
+                <th className="px-4 py-2.5 font-medium">Lapangan</th>
+                <th className="px-4 py-2.5 font-medium">Tanggal</th>
                 <th className="px-4 py-2.5 font-medium">Slot</th>
                 <th className="px-4 py-2.5 font-medium">Status</th>
-                <th className="px-4 py-2.5 font-medium">Amount</th>
-                <th className="px-4 py-2.5 font-medium text-right">Actions</th>
+                <th className="px-4 py-2.5 font-medium">Jumlah</th>
+                <th className="px-4 py-2.5 font-medium text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
@@ -204,14 +204,14 @@ export default function AdminDashboard() {
                         disabled={confirmingId === booking.id}
                         className="rounded bg-neutral-900 text-white text-xs font-medium px-3 py-1.5 hover:bg-neutral-800 disabled:opacity-40"
                       >
-                        {confirmingId === booking.id ? "Confirming…" : "Mark Payment Received"}
+                        {confirmingId === booking.id ? "Mengonfirmasi…" : "Tandai Pembayaran Diterima"}
                       </button>
                     ) : (
                       <button
                         onClick={() => setSelectedBookingId(booking.id)}
                         className="rounded border border-neutral-300 text-xs font-medium px-3 py-1.5 hover:bg-neutral-100"
                       >
-                        View
+                        Lihat
                       </button>
                     )}
                     {rowError[booking.id] && (
@@ -258,9 +258,9 @@ function WhatsAppBadge({ booking }: { booking: BookingWithRelations }) {
     pending: "bg-neutral-100 text-neutral-600",
   };
   const label: Record<string, string> = {
-    sent: "WhatsApp Sent",
-    failed: "WhatsApp Failed",
-    pending: "WhatsApp Draft Ready",
+    sent: "WhatsApp Terkirim",
+    failed: "WhatsApp Gagal",
+    pending: "Draf WhatsApp Siap",
   };
 
   return (
@@ -277,9 +277,9 @@ export function StatusBadge({ status }: { status: string }) {
     completed: "bg-neutral-200 text-neutral-700",
   };
   const label: Record<string, string> = {
-    pending_payment: "Pending Payment",
-    confirmed: "Confirmed",
-    completed: "Completed",
+    pending_payment: "Menunggu Pembayaran",
+    confirmed: "Terkonfirmasi",
+    completed: "Selesai",
   };
   return (
     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[status] ?? "bg-neutral-100 text-neutral-700"}`}>

@@ -32,23 +32,23 @@ export default async function BookingConfirmedPage({
     <div className="max-w-lg mx-auto px-4 py-10">
       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-6 py-8 text-center">
         <div className="text-4xl mb-2">✅</div>
-        <h1 className="text-xl font-bold text-emerald-900">Booking Submitted</h1>
+        <h1 className="text-xl font-bold text-emerald-900">Pemesanan Terkirim</h1>
         <p className="text-emerald-800 text-sm mt-1">
-          We&apos;ve received your request. An admin will confirm once payment is verified.
+          Kami telah menerima permintaan Anda. Admin akan mengonfirmasi setelah pembayaran diverifikasi.
         </p>
       </div>
 
       <dl className="mt-6 divide-y divide-neutral-200 rounded-lg border border-neutral-200 bg-white text-sm">
-        <Row label="Court" value={court?.name ?? "—"} />
-        <Row label="Time Slot" value={slot?.label ?? "—"} />
+        <Row label="Lapangan" value={court?.name ?? "—"} />
+        <Row label="Slot Waktu" value={slot?.label ?? "—"} />
         <Row
-          label="Time"
+          label="Waktu"
           value={slot ? `${formatTime(slot.start_time)} – ${formatTime(slot.end_time)}` : "—"}
         />
-        <Row label="Date" value={formatDisplayDate(booking.booking_date)} />
-        <Row label="Name" value={booking.client_name} />
-        <Row label="Phone" value={booking.client_phone} />
-        <Row label="Amount Due" value={formatCurrency(booking.amount_due)} />
+        <Row label="Tanggal" value={formatDisplayDate(booking.booking_date)} />
+        <Row label="Nama" value={booking.client_name} />
+        <Row label="Telepon" value={booking.client_phone} />
+        <Row label="Jumlah Tagihan" value={formatCurrency(booking.amount_due)} />
         <Row label="Status" value={<StatusBadge status={booking.status} />} />
       </dl>
 
@@ -56,7 +56,7 @@ export default async function BookingConfirmedPage({
         href="/book"
         className="mt-6 block text-center text-sm text-neutral-600 hover:text-neutral-900 underline"
       >
-        Book another slot
+        Pesan slot lain
       </Link>
     </div>
   );
@@ -78,9 +78,9 @@ function StatusBadge({ status }: { status: string }) {
     completed: "bg-neutral-200 text-neutral-700",
   };
   const label: Record<string, string> = {
-    pending_payment: "Pending Payment",
-    confirmed: "Confirmed",
-    completed: "Completed",
+    pending_payment: "Menunggu Pembayaran",
+    confirmed: "Terkonfirmasi",
+    completed: "Selesai",
   };
   return (
     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[status] ?? "bg-neutral-100 text-neutral-700"}`}>

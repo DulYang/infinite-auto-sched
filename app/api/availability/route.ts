@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const courtId = searchParams.get("courtId");
 
   if (!date || !courtId) {
-    return NextResponse.json({ error: "date and courtId are required." }, { status: 400 });
+    return NextResponse.json({ error: "date dan courtId wajib diisi." }, { status: 400 });
   }
 
   const { data, error } = await supabase.rpc("taken_slot_ids", {

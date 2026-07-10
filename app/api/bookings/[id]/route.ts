@@ -11,7 +11,7 @@ export async function GET(
 ) {
   const user = await requireUser();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Tidak diotorisasi" }, { status: 401 });
   }
 
   const { id } = await params;
@@ -27,7 +27,7 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   if (!booking) {
-    return NextResponse.json({ error: "Booking not found." }, { status: 404 });
+    return NextResponse.json({ error: "Pemesanan tidak ditemukan." }, { status: 404 });
   }
 
   return NextResponse.json({ booking });
@@ -39,7 +39,7 @@ export async function PATCH(
 ) {
   const user = await requireUser();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Tidak diotorisasi" }, { status: 401 });
   }
 
   const { id } = await params;
@@ -49,7 +49,7 @@ export async function PATCH(
 
   if (!action || !["confirm", "complete"].includes(action)) {
     return NextResponse.json(
-      { error: "action must be 'confirm' or 'complete'" },
+      { error: "aksi harus 'confirm' atau 'complete'" },
       { status: 400 },
     );
   }
@@ -64,18 +64,18 @@ export async function PATCH(
     return NextResponse.json({ error: fetchError.message }, { status: 500 });
   }
   if (!existing) {
-    return NextResponse.json({ error: "Booking not found." }, { status: 404 });
+    return NextResponse.json({ error: "Pemesanan tidak ditemukan." }, { status: 404 });
   }
 
   if (action === "confirm" && existing.status !== "pending_payment") {
     return NextResponse.json(
-      { error: `Cannot confirm a booking with status '${existing.status}'.` },
+      { error: `Tidak dapat mengonfirmasi pemesanan dengan status '${existing.status}'.` },
       { status: 409 },
     );
   }
   if (action === "complete" && existing.status !== "confirmed") {
     return NextResponse.json(
-      { error: `Cannot complete a booking with status '${existing.status}'.` },
+      { error: `Tidak dapat menyelesaikan pemesanan dengan status '${existing.status}'.` },
       { status: 409 },
     );
   }

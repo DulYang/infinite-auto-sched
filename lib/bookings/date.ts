@@ -18,7 +18,7 @@ export function tomorrowInputValue(): string {
 export function formatDisplayDate(dateStr: string): string {
   const [year, month, day] = dateStr.split("-").map(Number);
   const date = new Date(year, month - 1, day);
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString("id-ID", {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -28,7 +28,5 @@ export function formatDisplayDate(dateStr: string): string {
 
 export function formatTime(timeStr: string): string {
   const [h, m] = timeStr.split(":").map(Number);
-  const period = h >= 12 ? "PM" : "AM";
-  const hour12 = h % 12 === 0 ? 12 : h % 12;
-  return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }

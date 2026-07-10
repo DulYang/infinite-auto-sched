@@ -7,7 +7,7 @@ import { writeAuditLog } from "@/lib/bookings/audit";
 export async function GET(request: NextRequest) {
   const user = await requireUser();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Tidak diotorisasi" }, { status: 401 });
   }
 
   const supabase = await createClient();
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
 
   if (!body) {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return NextResponse.json({ error: "Data permintaan tidak valid" }, { status: 400 });
   }
 
   const { courtId, slotId, bookingDate, clientName, clientPhone, notes } = body as {
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   if (!courtId || !slotId || !bookingDate || !clientName || !clientPhone) {
     return NextResponse.json(
-      { error: "Missing required fields: courtId, slotId, bookingDate, clientName, clientPhone" },
+      { error: "Data wajib tidak lengkap: lapangan, slot, tanggal, nama, dan nomor telepon" },
       { status: 400 },
     );
   }
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   const requestedDate = new Date(`${bookingDate}T00:00:00`);
   if (requestedDate < today) {
     return NextResponse.json(
-      { error: "Cannot book a date in the past." },
+      { error: "Tidak dapat memesan tanggal yang sudah lewat." },
       { status: 400 },
     );
   }
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (!court) {
-    return NextResponse.json({ error: "Court not found." }, { status: 400 });
+    return NextResponse.json({ error: "Lapangan tidak ditemukan." }, { status: 400 });
   }
 
   // Public clients have no SELECT access to bookings (locked down in
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
   if (error) {
     if (error.code === "23505") {
       return NextResponse.json(
-        { error: "This slot is already taken. Please choose another." },
+        { error: "Slot ini sudah terisi. Silakan pilih slot lain." },
         { status: 409 },
       );
     }
