@@ -34,10 +34,25 @@ export interface Booking {
   created_at: string;
 }
 
+export type PaymentStatus = "pending" | "paid" | "failed";
+
+export interface Payment {
+  id: string;
+  booking_id: string;
+  provider: string;
+  provider_ref: string | null;
+  amount: number;
+  status: PaymentStatus;
+  raw_payload: Record<string, unknown> | null;
+  paid_at: string | null;
+  created_at: string;
+}
+
 export interface BookingWithRelations extends Booking {
   court: Court | null;
   slot: TimeSlot | null;
   whatsapp_logs?: WhatsAppLog[];
+  payments?: Payment[];
 }
 
 export interface WhatsAppLog {

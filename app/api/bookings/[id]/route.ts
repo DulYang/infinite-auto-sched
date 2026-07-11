@@ -19,7 +19,7 @@ export async function GET(
 
   const { data: booking, error } = await supabase
     .from("bookings")
-    .select("*, court:courts(*), slot:time_slots(*), whatsapp_logs(*)")
+    .select("*, court:courts(*), slot:time_slots(*), whatsapp_logs(*), payments(*)")
     .eq("id", id)
     .maybeSingle();
 
@@ -89,7 +89,7 @@ export async function PATCH(
     .from("bookings")
     .update(updates)
     .eq("id", id)
-    .select("*, court:courts(*), slot:time_slots(*), whatsapp_logs(*)")
+    .select("*, court:courts(*), slot:time_slots(*), whatsapp_logs(*), payments(*)")
     .single();
 
   if (error) {
@@ -103,6 +103,37 @@ export async function PATCH(
     details: { before: existing.status, after: booking.status },
     performedBy: "admin",
   });
+
+  if (action === "confirm") {
+    // Record the manually-verified payment. Optional reference from the admin.
+    const reference =
+      typeof body?.reference === "string" && body.reference.trim()
+        ? body.reference.trim()
+        : null;
+    const { data: payment } = await supabase
+      .from("payments")
+      .insert({
+        booking_id: booking.id,
+        provider: "manual",
+        provider_ref: reference,
+        amount: booking.amount_due,
+        status: "paid",
+        paid_at: new Date().toISOString(),
+      })
+      .select("*")
+      .single();
+
+    if (payment) {
+      await writeAuditLog(supabase, {
+        action: "payment.received",
+        entityType: "payment",
+        entityId: payment.id,
+        details: { provider: "manual", amount: booking.amount_due, ref: reference },
+        performedBy: "admin",
+      });
+      booking.payments = [payment];
+    }
+  }
 
   if (action === "confirm" && booking.court && booking.slot) {
     const draft = draftWhatsAppMessage({

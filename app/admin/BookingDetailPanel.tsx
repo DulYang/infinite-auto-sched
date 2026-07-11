@@ -175,6 +175,33 @@ export default function BookingDetailPanel({
             {booking.notes && <Row label="Catatan" value={booking.notes} />}
           </dl>
 
+          {(booking.payments?.length ?? 0) > 0 && (
+            <div className="pt-2">
+              <h3 className="font-semibold mb-2">Pembayaran</h3>
+              <ul className="divide-y divide-neutral-100 rounded border border-neutral-200">
+                {booking.payments!.map((p) => (
+                  <li key={p.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
+                    <div>
+                      <div className="font-medium">{formatCurrency(p.amount)}</div>
+                      <div className="text-xs text-neutral-400">
+                        {paymentProviderLabel(p.provider)}
+                        {p.provider_ref ? ` · Ref: ${p.provider_ref}` : ""}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <PaymentStatusBadge status={p.status} />
+                      {p.paid_at && (
+                        <div className="text-xs text-neutral-400 mt-1">
+                          {new Date(p.paid_at).toLocaleString("id-ID")}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {booking.status !== "pending_payment" && (
             <div className="pt-2">
               <h3 className="font-semibold mb-2">Konfirmasi WhatsApp</h3>
@@ -267,6 +294,34 @@ function statusLabel(status: string): string {
     completed: "Selesai",
   };
   return labels[status] ?? status;
+}
+
+function paymentProviderLabel(provider: string): string {
+  const labels: Record<string, string> = {
+    manual: "Manual (admin)",
+    gcash: "GCash",
+    bank_transfer: "Transfer Bank",
+    gateway: "Gateway Pembayaran",
+  };
+  return labels[provider] ?? provider;
+}
+
+function PaymentStatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    paid: "bg-emerald-100 text-emerald-800",
+    pending: "bg-amber-100 text-amber-800",
+    failed: "bg-red-100 text-red-700",
+  };
+  const label: Record<string, string> = {
+    paid: "Lunas",
+    pending: "Menunggu",
+    failed: "Gagal",
+  };
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? "bg-neutral-100 text-neutral-700"}`}>
+      {label[status] ?? status}
+    </span>
+  );
 }
 
 function SendStatusBadge({ status }: { status: string }) {
