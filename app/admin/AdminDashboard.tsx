@@ -176,6 +176,7 @@ export default function AdminDashboard() {
                   <div className="flex flex-col gap-1 items-end shrink-0">
                     <StatusBadge status={booking.status} />
                     <WhatsAppBadge booking={booking} />
+                    {booking.receipt_path && <ReceiptBadge />}
                   </div>
                 </div>
 
@@ -266,6 +267,7 @@ export default function AdminDashboard() {
                       <div className="flex flex-col gap-1 items-start">
                         <StatusBadge status={booking.status} />
                         <WhatsAppBadge booking={booking} />
+                        {booking.receipt_path && <ReceiptBadge />}
                       </div>
                     </td>
                     <td className="px-4 py-3">{formatCurrency(booking.amount_due)}</td>
@@ -317,6 +319,14 @@ function RecurringBadge() {
   return (
     <span className="rounded-full bg-indigo-100 text-indigo-700 px-2 py-0.5 text-[10px] font-medium">
       Rutin
+    </span>
+  );
+}
+
+function ReceiptBadge() {
+  return (
+    <span className="rounded-full bg-sky-100 text-sky-700 px-2.5 py-0.5 text-xs font-medium">
+      Bukti ✓
     </span>
   );
 }

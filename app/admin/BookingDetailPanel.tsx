@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { BookingWithRelations, WhatsAppLog, TimeSlot } from "@/lib/types";
 import { formatDisplayDate, formatTime, todayInputValue } from "@/lib/bookings/date";
 import { formatCurrency } from "@/lib/bookings/currency";
+import { createClient } from "@/lib/supabase/client";
 import { StatusBadge, latestWhatsAppLog } from "./AdminDashboard";
 
 type LogLoadState = "loading" | "ready" | "error";
@@ -32,6 +33,25 @@ export default function BookingDetailPanel({
   const [rescheduleSlotId, setRescheduleSlotId] = useState(booking.slot_id);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [takenSlotIds, setTakenSlotIds] = useState<Set<string>>(new Set());
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+
+  // Receipts are in a private bucket; generate a short-lived signed URL for
+  // the admin (authenticated) to view the client's uploaded proof.
+  useEffect(() => {
+    let cancelled = false;
+    setReceiptUrl(null);
+    if (!booking.receipt_path) return;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase.storage
+        .from("receipts")
+        .createSignedUrl(booking.receipt_path as string, 3600);
+      if (!cancelled && data?.signedUrl) setReceiptUrl(data.signedUrl);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [booking.receipt_path]);
 
   const canModify = booking.status === "pending_payment" || booking.status === "confirmed";
 
@@ -250,6 +270,36 @@ export default function BookingDetailPanel({
             )}
             {booking.notes && <Row label="Catatan" value={booking.notes} />}
           </dl>
+
+          {booking.receipt_path && (
+            <div className="pt-2">
+              <h3 className="font-semibold mb-2">Bukti Pembayaran</h3>
+              {!receiptUrl ? (
+                <div className="h-24 bg-neutral-100 rounded animate-pulse" />
+              ) : booking.receipt_path.toLowerCase().endsWith(".pdf") ? (
+                <a
+                  href={receiptUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block rounded border border-neutral-300 px-3 py-2 text-sm font-medium hover:bg-neutral-100"
+                >
+                  Buka bukti (PDF)
+                </a>
+              ) : (
+                <a href={receiptUrl} target="_blank" rel="noopener noreferrer" className="block">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={receiptUrl}
+                    alt="Bukti pembayaran"
+                    className="w-full max-h-64 object-contain rounded border border-neutral-200 bg-neutral-50"
+                  />
+                  <span className="mt-1 block text-xs text-neutral-500 underline">
+                    Buka bukti di tab baru
+                  </span>
+                </a>
+              )}
+            </div>
+          )}
 
           {(booking.payments?.length ?? 0) > 0 && (
             <div className="pt-2">

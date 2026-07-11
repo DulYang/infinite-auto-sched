@@ -5,6 +5,7 @@ import { formatDisplayDate, formatTime } from "@/lib/bookings/date";
 import { formatCurrency } from "@/lib/bookings/currency";
 import type { Booking, Court, TimeSlot } from "@/lib/types";
 import CancelBookingButton from "./CancelBookingButton";
+import ReceiptUpload from "./ReceiptUpload";
 
 export default async function BookingConfirmedPage({
   params,
@@ -64,6 +65,14 @@ export default async function BookingConfirmedPage({
         <Row label="Jumlah Tagihan" value={formatCurrency(booking.amount_due)} />
         <Row label="Status" value={<StatusBadge status={booking.status} />} />
       </dl>
+
+      {booking.status === "pending_payment" && (
+        <ReceiptUpload
+          bookingId={booking.id}
+          phone={booking.client_phone}
+          hasReceipt={!!booking.receipt_path}
+        />
+      )}
 
       {(booking.status === "pending_payment" || booking.status === "confirmed") && (
         <CancelBookingButton bookingId={booking.id} phone={booking.client_phone} />
