@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AdminDashboard from "./AdminDashboard";
 import AuditLogViewer from "./AuditLogViewer";
+import DailyReport from "./DailyReport";
 import SignOutButton from "./SignOutButton";
 
 export default async function AdminPage() {
@@ -28,6 +29,7 @@ export default async function AdminPage() {
           <SignOutButton />
         </div>
       </div>
+      <DailyReport />
       <AdminDashboard />
       <AuditLogViewer />
     </div>
