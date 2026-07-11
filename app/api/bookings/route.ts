@@ -102,7 +102,8 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
-    if (error.code === "23505") {
+    // 23505 = exact slot already booked; 23P01 = time-overlapping booking.
+    if (error.code === "23505" || error.code === "23P01") {
       return NextResponse.json(
         { error: "Slot ini sudah terisi. Silakan pilih slot lain." },
         { status: 409 },
