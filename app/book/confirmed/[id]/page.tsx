@@ -29,7 +29,7 @@ export default async function BookingConfirmedPage({
   ]);
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-10">
+    <div className="max-w-lg mx-auto px-4 py-6 sm:py-10">
       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-6 py-8 text-center">
         <div className="text-4xl mb-2">✅</div>
         <h1 className="text-xl font-bold text-emerald-900">Pemesanan Terkirim</h1>

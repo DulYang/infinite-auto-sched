@@ -36,7 +36,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="max-w-sm mx-auto px-4 py-16">
+    <div className="max-w-sm mx-auto px-4 py-12 sm:py-16">
       <h1 className="text-2xl font-bold tracking-tight mb-1">Masuk Admin</h1>
       <p className="text-neutral-500 mb-6 text-sm">
         Masuk untuk mengelola pemesanan dan mengirim konfirmasi WhatsApp.

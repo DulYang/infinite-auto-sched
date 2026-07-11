@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
+import AppNav from "./components/AppNav";
 
 export const metadata: Metadata = {
   title: "Infinite Auto Sched — Pemesanan Lapangan",
@@ -15,22 +15,10 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body className="antialiased min-h-screen bg-neutral-50 text-neutral-900">
-        <header className="border-b border-neutral-200 bg-white">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-            <Link href="/book" className="font-semibold tracking-tight">
-              🏀 Infinite Auto Sched
-            </Link>
-            <nav className="flex gap-4 text-sm">
-              <Link href="/book" className="text-neutral-600 hover:text-neutral-900">
-                Pesan Lapangan
-              </Link>
-              <Link href="/admin" className="text-neutral-600 hover:text-neutral-900">
-                Admin
-              </Link>
-            </nav>
-          </div>
-        </header>
-        <main>{children}</main>
+        <div className="md:flex md:min-h-screen">
+          <AppNav />
+          <main className="flex-1 min-w-0">{children}</main>
+        </div>
       </body>
     </html>
   );
