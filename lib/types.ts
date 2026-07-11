@@ -31,6 +31,7 @@ export interface Booking {
   amount_due: number;
   payment_confirmed_at: string | null;
   cancelled_at: string | null;
+  recurrence_group_id: string | null;
   notes: string | null;
   created_at: string;
 }

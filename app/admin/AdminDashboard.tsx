@@ -5,6 +5,7 @@ import type { BookingWithRelations } from "@/lib/types";
 import { formatDisplayDate, formatTime } from "@/lib/bookings/date";
 import { formatCurrency } from "@/lib/bookings/currency";
 import BookingDetailPanel from "./BookingDetailPanel";
+import RecurringBookingForm from "./RecurringBookingForm";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -70,6 +71,8 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-4">
+      <RecurringBookingForm onCreated={load} />
+
       <div className="flex flex-wrap items-end gap-3 rounded border border-neutral-200 bg-white px-4 py-3">
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1" htmlFor="statusFilter">
@@ -159,12 +162,15 @@ export default function AdminDashboard() {
               <div key={booking.id} className="rounded border border-neutral-200 bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <button
-                      onClick={() => setSelectedBookingId(booking.id)}
-                      className="font-medium text-neutral-900 hover:underline text-left"
-                    >
-                      {booking.client_name}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setSelectedBookingId(booking.id)}
+                        className="font-medium text-neutral-900 hover:underline text-left"
+                      >
+                        {booking.client_name}
+                      </button>
+                      {booking.recurrence_group_id && <RecurringBadge />}
+                    </div>
                     <div className="text-xs text-neutral-400">{booking.client_phone}</div>
                   </div>
                   <div className="flex flex-col gap-1 items-end shrink-0">
@@ -231,12 +237,15 @@ export default function AdminDashboard() {
                 {bookings.map((booking) => (
                   <tr key={booking.id} className="hover:bg-neutral-50">
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => setSelectedBookingId(booking.id)}
-                        className="font-medium text-neutral-900 hover:underline text-left"
-                      >
-                        {booking.client_name}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setSelectedBookingId(booking.id)}
+                          className="font-medium text-neutral-900 hover:underline text-left"
+                        >
+                          {booking.client_name}
+                        </button>
+                        {booking.recurrence_group_id && <RecurringBadge />}
+                      </div>
                       <div className="text-xs text-neutral-400">{booking.client_phone}</div>
                     </td>
                     <td className="px-4 py-3">{booking.court?.name ?? "—"}</td>
@@ -301,6 +310,14 @@ export default function AdminDashboard() {
         />
       )}
     </div>
+  );
+}
+
+function RecurringBadge() {
+  return (
+    <span className="rounded-full bg-indigo-100 text-indigo-700 px-2 py-0.5 text-[10px] font-medium">
+      Rutin
+    </span>
   );
 }
 
