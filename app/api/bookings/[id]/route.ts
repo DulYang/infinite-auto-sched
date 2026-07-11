@@ -47,9 +47,9 @@ export async function PATCH(
   const body = await request.json().catch(() => null);
   const action = body?.action as string | undefined;
 
-  if (!action || !["confirm", "complete"].includes(action)) {
+  if (!action || !["confirm", "complete", "cancel", "reschedule"].includes(action)) {
     return NextResponse.json(
-      { error: "aksi harus 'confirm' atau 'complete'" },
+      { error: "aksi harus 'confirm', 'complete', 'cancel', atau 'reschedule'" },
       { status: 400 },
     );
   }
@@ -65,6 +65,121 @@ export async function PATCH(
   }
   if (!existing) {
     return NextResponse.json({ error: "Pemesanan tidak ditemukan." }, { status: 404 });
+  }
+
+  // ── Cancel ────────────────────────────────────────────────────────────────
+  if (action === "cancel") {
+    if (existing.status === "completed") {
+      return NextResponse.json(
+        { error: "Tidak dapat membatalkan pemesanan yang sudah selesai." },
+        { status: 409 },
+      );
+    }
+    const { data: booking, error } = await supabase
+      .from("bookings")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+      .eq("id", id)
+      .select("*, court:courts(*), slot:time_slots(*), whatsapp_logs(*), payments(*)")
+      .single();
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    await writeAuditLog(supabase, {
+      action: "booking.cancelled",
+      entityType: "booking",
+      entityId: booking.id,
+      details: { before: existing.status, via: "admin" },
+      performedBy: "admin",
+    });
+    return NextResponse.json({ booking });
+  }
+
+  // ── Reschedule ──────────────────────────────────────────────────────────────
+  if (action === "reschedule") {
+    if (existing.status === "completed" || existing.status === "cancelled") {
+      return NextResponse.json(
+        { error: `Tidak dapat menjadwalkan ulang pemesanan dengan status '${existing.status}'.` },
+        { status: 409 },
+      );
+    }
+    const newSlotId = (body?.slotId as string | undefined) ?? existing.slot_id;
+    const newDate = (body?.bookingDate as string | undefined) ?? existing.booking_date;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (new Date(`${newDate}T00:00:00`) < today) {
+      return NextResponse.json(
+        { error: "Tidak dapat menjadwalkan ke tanggal yang sudah lewat." },
+        { status: 400 },
+      );
+    }
+
+    const { data: booking, error } = await supabase
+      .from("bookings")
+      .update({ slot_id: newSlotId, booking_date: newDate })
+      .eq("id", id)
+      .select("*, court:courts(*), slot:time_slots(*), whatsapp_logs(*), payments(*)")
+      .single();
+
+    if (error) {
+      if (error.code === "23505" || error.code === "23P01") {
+        return NextResponse.json(
+          { error: "Slot tujuan sudah terisi. Silakan pilih slot lain." },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    await writeAuditLog(supabase, {
+      action: "booking.rescheduled",
+      entityType: "booking",
+      entityId: booking.id,
+      details: {
+        from: { slot_id: existing.slot_id, booking_date: existing.booking_date },
+        to: { slot_id: newSlotId, booking_date: newDate },
+      },
+      performedBy: "admin",
+    });
+
+    // If already confirmed, draft a fresh WhatsApp message with the new details.
+    if (booking.status === "confirmed" && booking.court && booking.slot) {
+      const draft = draftWhatsAppMessage({
+        clientName: booking.client_name,
+        courtName: booking.court.name,
+        slotLabel: booking.slot.label,
+        startTime: booking.slot.start_time,
+        endTime: booking.slot.end_time,
+        bookingDate: booking.booking_date,
+        amountDue: booking.amount_due,
+      });
+      const { data: log } = await supabase
+        .from("whatsapp_logs")
+        .insert({
+          booking_id: booking.id,
+          recipient_phone: booking.client_phone,
+          message_body: draft,
+          send_status: "pending",
+          message_draft: draft,
+          message_draft_source: "template_engine",
+          message_draft_confidence: isValidE164(booking.client_phone) ? 0.99 : 0.5,
+          message_draft_review_status: "unreviewed",
+        })
+        .select("*")
+        .single();
+      if (log) {
+        await writeAuditLog(supabase, {
+          action: "whatsapp.drafted",
+          entityType: "whatsapp_log",
+          entityId: log.id,
+          details: { booking_id: booking.id, reason: "reschedule" },
+          performedBy: "system",
+        });
+        booking.whatsapp_logs = [...(booking.whatsapp_logs ?? []), log];
+      }
+    }
+
+    return NextResponse.json({ booking });
   }
 
   if (action === "confirm" && existing.status !== "pending_payment") {

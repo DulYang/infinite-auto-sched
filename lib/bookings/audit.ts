@@ -23,6 +23,8 @@ export const AUDIT_LABELS: Record<string, string> = {
   "booking.created": "Pemesanan dibuat",
   "booking.confirmed": "Pembayaran dikonfirmasi",
   "booking.completed": "Pemesanan ditandai selesai",
+  "booking.cancelled": "Pemesanan dibatalkan",
+  "booking.rescheduled": "Pemesanan dijadwalkan ulang",
   "whatsapp.drafted": "Draf WhatsApp dibuat",
   "whatsapp.sent": "Pesan WhatsApp terkirim",
   "whatsapp.failed": "Pengiriman WhatsApp gagal",

@@ -85,6 +85,7 @@ export default function AdminDashboard() {
             <option value="pending_payment">Menunggu Pembayaran</option>
             <option value="confirmed">Terkonfirmasi</option>
             <option value="completed">Selesai</option>
+            <option value="cancelled">Dibatalkan</option>
           </select>
         </div>
         <div>
@@ -338,11 +339,13 @@ export function StatusBadge({ status }: { status: string }) {
     pending_payment: "bg-amber-100 text-amber-800",
     confirmed: "bg-emerald-100 text-emerald-800",
     completed: "bg-neutral-200 text-neutral-700",
+    cancelled: "bg-red-100 text-red-700",
   };
   const label: Record<string, string> = {
     pending_payment: "Menunggu Pembayaran",
     confirmed: "Terkonfirmasi",
     completed: "Selesai",
+    cancelled: "Dibatalkan",
   };
   return (
     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[status] ?? "bg-neutral-100 text-neutral-700"}`}>

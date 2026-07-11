@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDisplayDate, formatTime } from "@/lib/bookings/date";
 import { formatCurrency } from "@/lib/bookings/currency";
 import type { Booking, Court, TimeSlot } from "@/lib/types";
+import CancelBookingButton from "./CancelBookingButton";
 
 export default async function BookingConfirmedPage({
   params,
@@ -28,15 +29,27 @@ export default async function BookingConfirmedPage({
     supabase.from("time_slots").select("*").eq("id", booking.slot_id).maybeSingle<TimeSlot>(),
   ]);
 
+  const isCancelled = booking.status === "cancelled";
+
   return (
     <div className="max-w-lg mx-auto px-4 py-6 sm:py-10">
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-6 py-8 text-center">
-        <div className="text-4xl mb-2">✅</div>
-        <h1 className="text-xl font-bold text-emerald-900">Pemesanan Terkirim</h1>
-        <p className="text-emerald-800 text-sm mt-1">
-          Kami telah menerima permintaan Anda. Admin akan mengonfirmasi setelah pembayaran diverifikasi.
-        </p>
-      </div>
+      {isCancelled ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-6 py-8 text-center">
+          <div className="text-4xl mb-2">❌</div>
+          <h1 className="text-xl font-bold text-red-900">Pemesanan Dibatalkan</h1>
+          <p className="text-red-800 text-sm mt-1">
+            Pemesanan ini telah dibatalkan. Silakan pesan slot lain bila diperlukan.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-6 py-8 text-center">
+          <div className="text-4xl mb-2">✅</div>
+          <h1 className="text-xl font-bold text-emerald-900">Pemesanan Terkirim</h1>
+          <p className="text-emerald-800 text-sm mt-1">
+            Kami telah menerima permintaan Anda. Admin akan mengonfirmasi setelah pembayaran diverifikasi.
+          </p>
+        </div>
+      )}
 
       <dl className="mt-6 divide-y divide-neutral-200 rounded-lg border border-neutral-200 bg-white text-sm">
         <Row label="Lapangan" value={court?.name ?? "—"} />
@@ -51,6 +64,10 @@ export default async function BookingConfirmedPage({
         <Row label="Jumlah Tagihan" value={formatCurrency(booking.amount_due)} />
         <Row label="Status" value={<StatusBadge status={booking.status} />} />
       </dl>
+
+      {(booking.status === "pending_payment" || booking.status === "confirmed") && (
+        <CancelBookingButton bookingId={booking.id} phone={booking.client_phone} />
+      )}
 
       <Link
         href="/book"
@@ -76,11 +93,13 @@ function StatusBadge({ status }: { status: string }) {
     pending_payment: "bg-amber-100 text-amber-800",
     confirmed: "bg-emerald-100 text-emerald-800",
     completed: "bg-neutral-200 text-neutral-700",
+    cancelled: "bg-red-100 text-red-700",
   };
   const label: Record<string, string> = {
     pending_payment: "Menunggu Pembayaran",
     confirmed: "Terkonfirmasi",
     completed: "Selesai",
+    cancelled: "Dibatalkan",
   };
   return (
     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[status] ?? "bg-neutral-100 text-neutral-700"}`}>

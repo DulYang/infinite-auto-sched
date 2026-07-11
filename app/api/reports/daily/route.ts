@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from("bookings")
     .select("status, amount_due")
-    .eq("booking_date", date);
+    .eq("booking_date", date)
+    .neq("status", "cancelled");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

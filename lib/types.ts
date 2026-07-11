@@ -1,4 +1,4 @@
-export type BookingStatus = "pending_payment" | "confirmed" | "completed";
+export type BookingStatus = "pending_payment" | "confirmed" | "completed" | "cancelled";
 export type SendStatus = "pending" | "sent" | "failed";
 export type ReviewStatus = "unreviewed" | "approved" | "rejected";
 
@@ -30,6 +30,7 @@ export interface Booking {
   status: BookingStatus;
   amount_due: number;
   payment_confirmed_at: string | null;
+  cancelled_at: string | null;
   notes: string | null;
   created_at: string;
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { BookingWithRelations, WhatsAppLog } from "@/lib/types";
-import { formatDisplayDate, formatTime } from "@/lib/bookings/date";
+import type { BookingWithRelations, WhatsAppLog, TimeSlot } from "@/lib/types";
+import { formatDisplayDate, formatTime, todayInputValue } from "@/lib/bookings/date";
 import { formatCurrency } from "@/lib/bookings/currency";
 import { StatusBadge, latestWhatsAppLog } from "./AdminDashboard";
 
@@ -24,6 +24,82 @@ export default function BookingDetailPanel({
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [priorBookings, setPriorBookings] = useState<BookingWithRelations[]>([]);
+
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState(booking.booking_date);
+  const [rescheduleSlotId, setRescheduleSlotId] = useState(booking.slot_id);
+  const [slots, setSlots] = useState<TimeSlot[]>([]);
+  const [takenSlotIds, setTakenSlotIds] = useState<Set<string>>(new Set());
+
+  const canModify = booking.status === "pending_payment" || booking.status === "confirmed";
+
+  async function patchBooking(payload: Record<string, unknown>, failMsg: string) {
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionError(data.error ?? failMsg);
+        return false;
+      }
+      onBookingUpdate(data.booking);
+      return true;
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : failMsg);
+      return false;
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleCancel() {
+    if (!window.confirm("Batalkan pemesanan ini? Slot akan tersedia kembali.")) return;
+    await patchBooking({ action: "cancel" }, "Gagal membatalkan pemesanan.");
+  }
+
+  async function openReschedule() {
+    setShowReschedule(true);
+    setActionError(null);
+    setRescheduleDate(booking.booking_date);
+    setRescheduleSlotId(booking.slot_id);
+    try {
+      const [slotsRes, availRes] = await Promise.all([
+        fetch("/api/time-slots"),
+        fetch(`/api/availability?date=${booking.booking_date}&courtId=${booking.court_id}`),
+      ]);
+      const slotsData = await slotsRes.json();
+      const availData = await availRes.json();
+      setSlots(slotsData.timeSlots ?? []);
+      setTakenSlotIds(new Set<string>(availData.takenSlotIds ?? []));
+    } catch {
+      // Non-fatal; the reschedule submit still validates server-side.
+    }
+  }
+
+  async function refreshAvailability(date: string) {
+    try {
+      const res = await fetch(`/api/availability?date=${date}&courtId=${booking.court_id}`);
+      const data = await res.json();
+      setTakenSlotIds(new Set<string>(data.takenSlotIds ?? []));
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleReschedule() {
+    const ok = await patchBooking(
+      { action: "reschedule", slotId: rescheduleSlotId, bookingDate: rescheduleDate },
+      "Gagal menjadwalkan ulang.",
+    );
+    if (ok) setShowReschedule(false);
+  }
 
   const activeLog = [...logs].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -272,6 +348,98 @@ export default function BookingDetailPanel({
               )}
             </div>
           )}
+
+          {canModify && (
+            <div className="pt-2 border-t border-neutral-200">
+              {actionError && (
+                <div className="rounded border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-xs mb-2">
+                  {actionError}
+                </div>
+              )}
+
+              {!showReschedule ? (
+                <div className="flex gap-2">
+                  <button
+                    onClick={openReschedule}
+                    disabled={actionBusy}
+                    className="flex-1 rounded border border-neutral-300 text-sm font-medium py-2 hover:bg-neutral-100 disabled:opacity-40"
+                  >
+                    Jadwalkan Ulang
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    disabled={actionBusy}
+                    className="flex-1 rounded border border-red-300 text-red-700 text-sm font-medium py-2 hover:bg-red-50 disabled:opacity-40"
+                  >
+                    {actionBusy ? "Memproses…" : "Batalkan"}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <h3 className="font-semibold">Jadwalkan Ulang</h3>
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-500 mb-1" htmlFor="rescheduleDate">
+                      Tanggal baru
+                    </label>
+                    <input
+                      id="rescheduleDate"
+                      type="date"
+                      min={todayInputValue()}
+                      value={rescheduleDate}
+                      onChange={(e) => {
+                        setRescheduleDate(e.target.value);
+                        refreshAvailability(e.target.value);
+                      }}
+                      className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-500 mb-1" htmlFor="rescheduleSlot">
+                      Slot baru
+                    </label>
+                    <select
+                      id="rescheduleSlot"
+                      value={rescheduleSlotId}
+                      onChange={(e) => setRescheduleSlotId(e.target.value)}
+                      className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
+                    >
+                      {slots.map((s) => {
+                        // A slot is selectable if free, or if it's this booking's current slot on its current date.
+                        const taken =
+                          takenSlotIds.has(s.id) &&
+                          !(s.id === booking.slot_id && rescheduleDate === booking.booking_date);
+                        return (
+                          <option key={s.id} value={s.id} disabled={taken}>
+                            {s.label} ({formatTime(s.start_time)}–{formatTime(s.end_time)})
+                            {taken ? " — terisi" : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleReschedule}
+                      disabled={actionBusy}
+                      className="flex-1 rounded bg-neutral-900 text-white text-sm font-medium py-2 hover:bg-neutral-800 disabled:opacity-40"
+                    >
+                      {actionBusy ? "Menyimpan…" : "Simpan Jadwal Baru"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowReschedule(false);
+                        setActionError(null);
+                      }}
+                      disabled={actionBusy}
+                      className="rounded border border-neutral-300 text-sm font-medium px-4 py-2 hover:bg-neutral-100 disabled:opacity-40"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -292,6 +460,7 @@ function statusLabel(status: string): string {
     pending_payment: "Menunggu Pembayaran",
     confirmed: "Terkonfirmasi",
     completed: "Selesai",
+    cancelled: "Dibatalkan",
   };
   return labels[status] ?? status;
 }
