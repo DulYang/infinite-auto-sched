@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  const phone = searchParams.get("phone");
 
   let query = supabase
     .from("bookings")
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
   if (status) query = query.eq("status", status);
   if (from) query = query.gte("booking_date", from);
   if (to) query = query.lte("booking_date", to);
+  if (phone) query = query.eq("client_phone", phone);
 
   const { data, error } = await query;
 

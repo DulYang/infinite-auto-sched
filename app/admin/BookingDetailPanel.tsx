@@ -23,10 +23,35 @@ export default function BookingDetailPanel({
   const [draftText, setDraftText] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [priorBookings, setPriorBookings] = useState<BookingWithRelations[]>([]);
 
   const activeLog = [...logs].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   )[0] as WhatsAppLog | undefined;
+
+  // Recognize returning clients: fetch other bookings under the same phone.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadHistory() {
+      try {
+        const res = await fetch(
+          `/api/bookings?phone=${encodeURIComponent(booking.client_phone)}`,
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setPriorBookings(
+          (data.bookings ?? []).filter((b: BookingWithRelations) => b.id !== booking.id),
+        );
+      } catch {
+        // History is informational only.
+      }
+    }
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [booking.id, booking.client_phone]);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +131,26 @@ export default function BookingDetailPanel({
             <span className="text-neutral-500">Status</span>
             <StatusBadge status={booking.status} />
           </div>
+
+          {priorBookings.length > 0 && (
+            <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+              <p className="text-sm font-medium text-emerald-900">
+                Klien berulang — {priorBookings.length} pemesanan sebelumnya
+              </p>
+              <ul className="mt-1.5 space-y-0.5 text-xs text-emerald-800">
+                {priorBookings.slice(0, 5).map((b) => (
+                  <li key={b.id} className="flex justify-between gap-3">
+                    <span>
+                      {formatDisplayDate(b.booking_date)}
+                      {b.slot ? ` · ${b.slot.label}` : ""}
+                    </span>
+                    <span className="shrink-0">{statusLabel(b.status)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <dl className="divide-y divide-neutral-100 rounded border border-neutral-200">
             <Row label="Klien" value={booking.client_name} />
             <Row label="Telepon" value={booking.client_phone} />
@@ -213,6 +258,15 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
       <dd className="font-medium text-neutral-900 text-right">{value}</dd>
     </div>
   );
+}
+
+function statusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    pending_payment: "Menunggu Pembayaran",
+    confirmed: "Terkonfirmasi",
+    completed: "Selesai",
+  };
+  return labels[status] ?? status;
 }
 
 function SendStatusBadge({ status }: { status: string }) {

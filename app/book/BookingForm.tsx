@@ -29,6 +29,25 @@ export default function BookingForm() {
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [returningClient, setReturningClient] = useState(false);
+
+  async function lookupReturningClient() {
+    if (!isValidE164(clientPhone)) return;
+    try {
+      const res = await fetch(`/api/clients/lookup?phone=${encodeURIComponent(clientPhone)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.name) {
+        setReturningClient(true);
+        // Only pre-fill if the client hasn't already typed a name.
+        if (!clientName.trim()) setClientName(data.name);
+      } else {
+        setReturningClient(false);
+      }
+    } catch {
+      // Lookup is a convenience only; ignore failures.
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -240,6 +259,31 @@ export default function BookingForm() {
 
       <div className="space-y-4">
         <div>
+          <label className="block text-sm font-medium mb-1" htmlFor="clientPhone">
+            Nomor Telepon
+          </label>
+          <input
+            id="clientPhone"
+            type="tel"
+            value={clientPhone}
+            onChange={(e) => {
+              setClientPhone(e.target.value);
+              setPhoneError(null);
+              setReturningClient(false);
+            }}
+            onBlur={() => {
+              if (clientPhone && !isValidE164(clientPhone)) {
+                setPhoneError(PHONE_FORMAT_ERROR);
+                return;
+              }
+              lookupReturningClient();
+            }}
+            placeholder="+6281234567890"
+            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
+          />
+          {phoneError && <p className="text-xs text-red-600 mt-1">{phoneError}</p>}
+        </div>
+        <div>
           <label className="block text-sm font-medium mb-1" htmlFor="clientName">
             Nama Anda
           </label>
@@ -251,26 +295,11 @@ export default function BookingForm() {
             placeholder="Budi Santoso"
             className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
           />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="clientPhone">
-            Nomor Telepon
-          </label>
-          <input
-            id="clientPhone"
-            type="tel"
-            value={clientPhone}
-            onChange={(e) => {
-              setClientPhone(e.target.value);
-              setPhoneError(null);
-            }}
-            onBlur={() => {
-              if (clientPhone && !isValidE164(clientPhone)) setPhoneError(PHONE_FORMAT_ERROR);
-            }}
-            placeholder="+6281234567890"
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
-          />
-          {phoneError && <p className="text-xs text-red-600 mt-1">{phoneError}</p>}
+          {returningClient && (
+            <p className="text-xs text-emerald-700 mt-1">
+              Selamat datang kembali! Nama Anda telah diisi otomatis — silakan ubah bila perlu.
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="notes">
