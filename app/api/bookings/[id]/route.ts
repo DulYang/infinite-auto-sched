@@ -147,7 +147,6 @@ export async function PATCH(
       const draft = draftWhatsAppMessage({
         clientName: booking.client_name,
         courtName: booking.court.name,
-        slotLabel: booking.slot.label,
         startTime: booking.slot.start_time,
         endTime: booking.slot.end_time,
         bookingDate: booking.booking_date,
@@ -254,7 +253,6 @@ export async function PATCH(
     const draft = draftWhatsAppMessage({
       clientName: booking.client_name,
       courtName: booking.court.name,
-      slotLabel: booking.slot.label,
       startTime: booking.slot.start_time,
       endTime: booking.slot.end_time,
       bookingDate: booking.booking_date,

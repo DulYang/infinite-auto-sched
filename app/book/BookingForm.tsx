@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Court, TimeSlot } from "@/lib/types";
 import { isValidE164, PHONE_FORMAT_ERROR } from "@/lib/bookings/phone";
-import { todayInputValue, tomorrowInputValue, formatTime } from "@/lib/bookings/date";
+import { todayInputValue, tomorrowInputValue } from "@/lib/bookings/date";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -226,34 +226,36 @@ export default function BookingForm() {
           </div>
         )}
         {gridState === "ready" && timeSlots.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {timeSlots.map((slot) => {
-              const taken = takenSlotIds.has(slot.id);
-              const selected = selectedSlotId === slot.id;
-              return (
-                <button
-                  type="button"
-                  key={slot.id}
-                  disabled={taken}
-                  onClick={() => setSelectedSlotId(slot.id)}
-                  className={[
-                    "rounded border px-3 py-3 text-left text-sm transition",
-                    taken
-                      ? "bg-neutral-100 border-neutral-200 text-neutral-400 cursor-not-allowed"
-                      : selected
-                        ? "bg-emerald-600 border-emerald-600 text-white"
-                        : "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100",
-                  ].join(" ")}
-                >
-                  <div className="font-medium">{slot.label}</div>
-                  <div className="text-xs opacity-80">
-                    {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
-                  </div>
-                  <div className="text-xs mt-1 opacity-80">{taken ? "Terisi" : "Tersedia"}</div>
-                </button>
-              );
-            })}
-          </div>
+          <>
+            <p className="text-xs text-neutral-500 mb-2">
+              Durasi 2 jam, mulai setiap 30 menit.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {timeSlots.map((slot) => {
+                const taken = takenSlotIds.has(slot.id);
+                const selected = selectedSlotId === slot.id;
+                return (
+                  <button
+                    type="button"
+                    key={slot.id}
+                    disabled={taken}
+                    onClick={() => setSelectedSlotId(slot.id)}
+                    className={[
+                      "rounded border px-2 py-2 text-center text-sm transition",
+                      taken
+                        ? "bg-neutral-100 border-neutral-200 text-neutral-400 cursor-not-allowed"
+                        : selected
+                          ? "bg-emerald-600 border-emerald-600 text-white"
+                          : "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100",
+                    ].join(" ")}
+                  >
+                    <div className="font-medium">{slot.label}</div>
+                    <div className="text-xs mt-0.5 opacity-80">{taken ? "Terisi" : "Tersedia"}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 

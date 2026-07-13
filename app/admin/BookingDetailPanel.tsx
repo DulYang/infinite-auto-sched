@@ -92,7 +92,7 @@ export default function BookingDetailPanel({
     try {
       const [slotsRes, availRes] = await Promise.all([
         fetch("/api/time-slots"),
-        fetch(`/api/availability?date=${booking.booking_date}&courtId=${booking.court_id}`),
+        fetch(`/api/availability?date=${booking.booking_date}&courtId=${booking.court_id}&excludeBooking=${booking.id}`),
       ]);
       const slotsData = await slotsRes.json();
       const availData = await availRes.json();
@@ -105,7 +105,7 @@ export default function BookingDetailPanel({
 
   async function refreshAvailability(date: string) {
     try {
-      const res = await fetch(`/api/availability?date=${date}&courtId=${booking.court_id}`);
+      const res = await fetch(`/api/availability?date=${date}&courtId=${booking.court_id}&excludeBooking=${booking.id}`);
       const data = await res.json();
       setTakenSlotIds(new Set<string>(data.takenSlotIds ?? []));
     } catch {
@@ -454,13 +454,12 @@ export default function BookingDetailPanel({
                       className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
                     >
                       {slots.map((s) => {
-                        // A slot is selectable if free, or if it's this booking's current slot on its current date.
-                        const taken =
-                          takenSlotIds.has(s.id) &&
-                          !(s.id === booking.slot_id && rescheduleDate === booking.booking_date);
+                        // Availability already excludes this booking's own range
+                        // (excludeBooking param), so taken ids are real conflicts.
+                        const taken = takenSlotIds.has(s.id);
                         return (
                           <option key={s.id} value={s.id} disabled={taken}>
-                            {s.label} ({formatTime(s.start_time)}–{formatTime(s.end_time)})
+                            {s.label}
                             {taken ? " — terisi" : ""}
                           </option>
                         );

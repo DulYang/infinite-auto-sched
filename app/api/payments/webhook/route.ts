@@ -141,7 +141,6 @@ export async function POST(request: NextRequest) {
       ? draftWhatsAppMessage({
           clientName: booking.client_name,
           courtName: court.name,
-          slotLabel: slot.label,
           startTime: slot.start_time,
           endTime: slot.end_time,
           bookingDate: booking.booking_date,

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Court, TimeSlot } from "@/lib/types";
 import { isValidE164, PHONE_FORMAT_ERROR } from "@/lib/bookings/phone";
-import { tomorrowInputValue, todayInputValue, formatTime, formatDisplayDate } from "@/lib/bookings/date";
+import { tomorrowInputValue, todayInputValue, formatDisplayDate } from "@/lib/bookings/date";
 
 export default function RecurringBookingForm({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
@@ -112,7 +112,7 @@ export default function RecurringBookingForm({ onCreated }: { onCreated: () => v
               >
                 {slots.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.label} ({formatTime(s.start_time)}–{formatTime(s.end_time)})
+                    {s.label}
                   </option>
                 ))}
               </select>
