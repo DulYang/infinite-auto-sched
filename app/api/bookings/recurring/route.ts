@@ -5,8 +5,8 @@ import { requireUser } from "@/lib/supabase/requireUser";
 import { isValidE164, PHONE_FORMAT_ERROR } from "@/lib/bookings/phone";
 import { writeAuditLog } from "@/lib/bookings/audit";
 import { toDateInputValue } from "@/lib/bookings/date";
+import { priceForMinutes, slotMinutes } from "@/lib/bookings/pricing";
 
-const AMOUNT_DUE = 350000;
 const MAX_WEEKS = 52;
 
 // Admin: create a weekly recurring series. One booking per week; weeks whose
@@ -57,6 +57,21 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createClient();
+
+  // Price follows the selected slot's duration (2h Rp 350.000 / 1h Rp 250.000).
+  const { data: slot } = await supabase
+    .from("time_slots")
+    .select("start_time, end_time")
+    .eq("id", slotId)
+    .maybeSingle();
+  if (!slot) {
+    return NextResponse.json({ error: "Slot tidak ditemukan." }, { status: 400 });
+  }
+  const amountDue = priceForMinutes(slotMinutes(slot.start_time, slot.end_time));
+  if (amountDue === null) {
+    return NextResponse.json({ error: "Durasi slot tidak didukung." }, { status: 400 });
+  }
+
   const groupId = crypto.randomUUID();
   const created: { id: string; booking_date: string }[] = [];
   const skipped: string[] = [];
@@ -75,7 +90,7 @@ export async function POST(request: NextRequest) {
         client_name: clientName.trim(),
         client_phone: clientPhone.trim(),
         status: "pending_payment",
-        amount_due: AMOUNT_DUE,
+        amount_due: amountDue,
         notes: notes?.trim() || null,
         recurrence_group_id: groupId,
       })

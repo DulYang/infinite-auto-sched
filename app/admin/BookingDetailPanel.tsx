@@ -5,6 +5,7 @@ import type { BookingWithRelations, WhatsAppLog, TimeSlot } from "@/lib/types";
 import { formatDisplayDate, formatTime, todayInputValue } from "@/lib/bookings/date";
 import { formatCurrency } from "@/lib/bookings/currency";
 import { createClient } from "@/lib/supabase/client";
+import { slotMinutes } from "@/lib/bookings/pricing";
 import { StatusBadge, latestWhatsAppLog } from "./AdminDashboard";
 
 type LogLoadState = "loading" | "ready" | "error";
@@ -453,17 +454,26 @@ export default function BookingDetailPanel({
                       onChange={(e) => setRescheduleSlotId(e.target.value)}
                       className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
                     >
-                      {slots.map((s) => {
-                        // Availability already excludes this booking's own range
-                        // (excludeBooking param), so taken ids are real conflicts.
-                        const taken = takenSlotIds.has(s.id);
-                        return (
-                          <option key={s.id} value={s.id} disabled={taken}>
-                            {s.label}
-                            {taken ? " — terisi" : ""}
-                          </option>
-                        );
-                      })}
+                      {[
+                        { label: "Durasi 2 jam — Rp 350.000", minutes: 120 },
+                        { label: "Durasi 1 jam — Rp 250.000", minutes: 60 },
+                      ].map((group) => (
+                        <optgroup key={group.minutes} label={group.label}>
+                          {slots
+                            .filter((s) => slotMinutes(s.start_time, s.end_time) === group.minutes)
+                            .map((s) => {
+                              // Availability already excludes this booking's own
+                              // range (excludeBooking), so taken = real conflict.
+                              const taken = takenSlotIds.has(s.id);
+                              return (
+                                <option key={s.id} value={s.id} disabled={taken}>
+                                  {s.label}
+                                  {taken ? " — terisi" : ""}
+                                </option>
+                              );
+                            })}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
                   <div className="flex gap-2">

@@ -92,7 +92,8 @@ export async function POST(request: NextRequest) {
   // Public clients have no SELECT access to bookings (locked down in
   // 0002/0004), so creation goes through a security-definer RPC that can
   // insert and return the new row without needing a table-level SELECT
-  // policy for anon.
+  // policy for anon. The RPC derives the price from the slot duration
+  // (2h = Rp 350.000, 1h = Rp 250.000) so it can't be tampered with.
   const { data: booking, error } = await supabase.rpc("create_booking", {
     p_court_id: courtId,
     p_slot_id: slotId,
@@ -100,7 +101,6 @@ export async function POST(request: NextRequest) {
     p_client_name: clientName.trim(),
     p_client_phone: clientPhone.trim(),
     p_notes: notes?.trim() || null,
-    p_amount_due: 350000,
   });
 
   if (error) {

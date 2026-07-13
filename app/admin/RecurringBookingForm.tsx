@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Court, TimeSlot } from "@/lib/types";
 import { isValidE164, PHONE_FORMAT_ERROR } from "@/lib/bookings/phone";
 import { tomorrowInputValue, todayInputValue, formatDisplayDate } from "@/lib/bookings/date";
+import { slotMinutes } from "@/lib/bookings/pricing";
 
 export default function RecurringBookingForm({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
@@ -110,11 +111,24 @@ export default function RecurringBookingForm({ onCreated }: { onCreated: () => v
                 onChange={(e) => setSlotId(e.target.value)}
                 className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
               >
-                {slots.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
+                <optgroup label="Durasi 2 jam — Rp 350.000">
+                  {slots
+                    .filter((s) => slotMinutes(s.start_time, s.end_time) === 120)
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Durasi 1 jam — Rp 250.000">
+                  {slots
+                    .filter((s) => slotMinutes(s.start_time, s.end_time) === 60)
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                </optgroup>
               </select>
             </div>
             <div>

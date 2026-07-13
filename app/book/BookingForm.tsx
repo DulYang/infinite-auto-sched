@@ -1,12 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Court, TimeSlot } from "@/lib/types";
 import { isValidE164, PHONE_FORMAT_ERROR } from "@/lib/bookings/phone";
 import { todayInputValue, tomorrowInputValue } from "@/lib/bookings/date";
+import { formatCurrency } from "@/lib/bookings/currency";
+import { priceForMinutes, slotMinutes } from "@/lib/bookings/pricing";
 
 type LoadState = "loading" | "ready" | "error";
+type Range = { start: number; end: number };
+
+const OPEN_MIN = 8 * 60; // 08:00
+const CLOSE_MIN = 22 * 60; // 22:00
 
 export default function BookingForm() {
   const router = useRouter();
@@ -17,11 +23,12 @@ export default function BookingForm() {
 
   const [date, setDate] = useState(tomorrowInputValue());
   const [courtId, setCourtId] = useState<string>("");
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [durationMin, setDurationMin] = useState(120);
+  const [selectedSlotId, setSelectedSlotId] = useState<string>("");
 
-  const [takenSlotIds, setTakenSlotIds] = useState<Set<string>>(new Set());
-  const [gridState, setGridState] = useState<LoadState>("loading");
-  const [gridError, setGridError] = useState<string | null>(null);
+  const [bookedRanges, setBookedRanges] = useState<Range[]>([]);
+  const [rangesState, setRangesState] = useState<LoadState>("loading");
+  const [rangesError, setRangesError] = useState<string | null>(null);
 
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
@@ -39,7 +46,6 @@ export default function BookingForm() {
       const data = await res.json();
       if (data.name) {
         setReturningClient(true);
-        // Only pre-fill if the client hasn't already typed a name.
         if (!clientName.trim()) setClientName(data.name);
       } else {
         setReturningClient(false);
@@ -78,26 +84,48 @@ export default function BookingForm() {
     };
   }, []);
 
-  const loadGrid = useCallback(async () => {
+  const loadRanges = useCallback(async () => {
     if (!courtId || !date) return;
-    setGridState("loading");
-    setGridError(null);
+    setRangesState("loading");
+    setRangesError(null);
     try {
-      const res = await fetch(`/api/availability?date=${date}&courtId=${courtId}`);
-      if (!res.ok) throw new Error("Gagal memuat ketersediaan slot.");
+      const res = await fetch(`/api/booked-ranges?date=${date}&courtId=${courtId}`);
+      if (!res.ok) throw new Error("Gagal memuat jadwal hari itu.");
       const data = await res.json();
-      setTakenSlotIds(new Set<string>(data.takenSlotIds ?? []));
-      setGridState("ready");
+      setBookedRanges(data.ranges ?? []);
+      setRangesState("ready");
     } catch (err) {
-      setGridError(err instanceof Error ? err.message : "Terjadi kesalahan.");
-      setGridState("error");
+      setRangesError(err instanceof Error ? err.message : "Terjadi kesalahan.");
+      setRangesState("error");
     }
   }, [courtId, date]);
 
   useEffect(() => {
-    setSelectedSlotId(null);
-    loadGrid();
-  }, [loadGrid]);
+    setSelectedSlotId("");
+    loadRanges();
+  }, [loadRanges]);
+
+  // Slots for the chosen duration, with availability computed against the
+  // booked ranges (the DB exclusion constraint remains the hard guard).
+  const startOptions = useMemo(() => {
+    return timeSlots
+      .filter((s) => slotMinutes(s.start_time, s.end_time) === durationMin)
+      .map((s) => {
+        const start = toMin(s.start_time);
+        const end = toMin(s.end_time);
+        const taken = bookedRanges.some((r) => start < r.end && end > r.start);
+        return { slot: s, taken };
+      })
+      .sort((a, b) => toMin(a.slot.start_time) - toMin(b.slot.start_time));
+  }, [timeSlots, durationMin, bookedRanges]);
+
+  const availableOptions = startOptions.filter((o) => !o.taken);
+  const selectedSlot = timeSlots.find((s) => s.id === selectedSlotId) ?? null;
+  const price = priceForMinutes(durationMin) ?? 0;
+
+  const selectedRange: Range | null = selectedSlot
+    ? { start: toMin(selectedSlot.start_time), end: toMin(selectedSlot.end_time) }
+    : null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -105,7 +133,7 @@ export default function BookingForm() {
     setPhoneError(null);
 
     if (!selectedSlotId) {
-      setSubmitError("Silakan pilih slot waktu yang tersedia.");
+      setSubmitError("Silakan pilih jam mulai.");
       return;
     }
     if (!clientName.trim()) {
@@ -135,7 +163,8 @@ export default function BookingForm() {
       if (!res.ok) {
         setSubmitError(data.error ?? "Terjadi kesalahan.");
         if (res.status === 409) {
-          loadGrid();
+          setSelectedSlotId("");
+          loadRanges();
         }
         return;
       }
@@ -150,7 +179,7 @@ export default function BookingForm() {
   if (staticState === "loading") {
     return <div className="animate-pulse space-y-3">
       <div className="h-10 bg-neutral-200 rounded" />
-      <div className="h-32 bg-neutral-200 rounded" />
+      <div className="h-56 bg-neutral-200 rounded" />
       <div className="h-40 bg-neutral-200 rounded" />
     </div>;
   }
@@ -206,57 +235,70 @@ export default function BookingForm() {
         </div>
       </div>
 
-      <div>
-        <p className="block text-sm font-medium mb-2">Slot Waktu</p>
-        {gridState === "loading" && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-16 bg-neutral-200 rounded animate-pulse" />
-            ))}
-          </div>
-        )}
-        {gridState === "error" && (
-          <div className="rounded border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
-            {gridError ?? "Ketersediaan slot gagal dimuat."}
-          </div>
-        )}
-        {gridState === "ready" && timeSlots.length === 0 && (
-          <div className="rounded border border-neutral-200 bg-white px-4 py-6 text-center text-neutral-500 text-sm">
-            Belum ada slot waktu yang diatur.
-          </div>
-        )}
-        {gridState === "ready" && timeSlots.length > 0 && (
-          <>
-            <p className="text-xs text-neutral-500 mb-2">
-              Durasi 2 jam, mulai setiap 30 menit.
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {timeSlots.map((slot) => {
-                const taken = takenSlotIds.has(slot.id);
-                const selected = selectedSlotId === slot.id;
-                return (
-                  <button
-                    type="button"
-                    key={slot.id}
-                    disabled={taken}
-                    onClick={() => setSelectedSlotId(slot.id)}
-                    className={[
-                      "rounded border px-2 py-2 text-center text-sm transition",
-                      taken
-                        ? "bg-neutral-100 border-neutral-200 text-neutral-400 cursor-not-allowed"
-                        : selected
-                          ? "bg-emerald-600 border-emerald-600 text-white"
-                          : "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100",
-                    ].join(" ")}
-                  >
-                    <div className="font-medium">{slot.label}</div>
-                    <div className="text-xs mt-0.5 opacity-80">{taken ? "Terisi" : "Tersedia"}</div>
-                  </button>
-                );
-              })}
+      <div className="rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="duration">
+                Durasi
+              </label>
+              <select
+                id="duration"
+                value={durationMin}
+                onChange={(e) => {
+                  setDurationMin(Number(e.target.value));
+                  setSelectedSlotId("");
+                }}
+                className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
+              >
+                <option value={120}>2 jam — {formatCurrency(350000)} (Rekomendasi)</option>
+                <option value={60}>1 jam — {formatCurrency(250000)}</option>
+              </select>
             </div>
-          </>
-        )}
+
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="startTime">
+                Jam Mulai
+              </label>
+              {rangesState === "error" ? (
+                <div className="rounded border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">
+                  {rangesError}
+                </div>
+              ) : (
+                <select
+                  id="startTime"
+                  value={selectedSlotId}
+                  onChange={(e) => setSelectedSlotId(e.target.value)}
+                  disabled={rangesState === "loading"}
+                  className="w-full rounded border border-neutral-300 px-3 py-2 text-sm disabled:bg-neutral-50"
+                >
+                  <option value="">
+                    {rangesState === "loading" ? "Memuat…" : "— Pilih jam mulai —"}
+                  </option>
+                  {availableOptions.map(({ slot }) => (
+                    <option key={slot.id} value={slot.id}>
+                      {slot.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {rangesState === "ready" && availableOptions.length === 0 && (
+                <p className="text-xs text-amber-700 mt-1">
+                  Tidak ada waktu tersedia untuk durasi ini pada tanggal tersebut.
+                </p>
+              )}
+            </div>
+
+            {selectedSlot && (
+              <div className="rounded bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-900">
+                <span className="font-medium">{selectedSlot.label}</span> · Total{" "}
+                <span className="font-semibold">{formatCurrency(price)}</span>
+              </div>
+            )}
+          </div>
+
+          <ClockDiagram booked={bookedRanges} selected={selectedRange} />
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -328,8 +370,123 @@ export default function BookingForm() {
         disabled={submitting || !selectedSlotId}
         className="w-full rounded bg-neutral-900 text-white font-medium py-2.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-neutral-800 transition"
       >
-        {submitting ? "Mengirim…" : "Pesan Slot Ini"}
+        {submitting ? "Mengirim…" : `Pesan Sekarang${selectedSlot ? ` — ${formatCurrency(price)}` : ""}`}
       </button>
     </form>
+  );
+}
+
+function toMin(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// 24-hour clock diagram: green = available (within 08.00-22.00), red =
+// booked, white = closed, blue = the user's current selection.
+function ClockDiagram({ booked, selected }: { booked: Range[]; selected: Range | null }) {
+  const C = 110;
+  const R = 82;
+  const W = 24;
+
+  function pt(min: number, r: number) {
+    const a = (min / 1440) * 2 * Math.PI - Math.PI / 2;
+    return { x: C + r * Math.cos(a), y: C + r * Math.sin(a) };
+  }
+
+  function arc(startMin: number, endMin: number, r: number) {
+    // Nudge full-circle-ish arcs; SVG arcs can't span exactly 360°.
+    const span = Math.min(endMin - startMin, 1439.9);
+    const p0 = pt(startMin, r);
+    const p1 = pt(startMin + span, r);
+    const large = span > 720 ? 1 : 0;
+    return `M ${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
+  }
+
+  const clamp = (r: Range) => ({
+    start: Math.max(r.start, OPEN_MIN),
+    end: Math.min(r.end, CLOSE_MIN),
+  });
+
+  const ticks = Array.from({ length: 24 }, (_, h) => {
+    const major = h % 6 === 0;
+    const o = pt(h * 60, R + W / 2 + 2);
+    const i = pt(h * 60, R + W / 2 + (major ? -4 : 0) - 4);
+    return { o, i, major, h };
+  });
+
+  const labels = [
+    { h: 24, min: 0 },
+    { h: 6, min: 360 },
+    { h: 12, min: 720 },
+    { h: 18, min: 1080 },
+  ].map(({ h, min }) => ({ h, p: pt(min, R - W / 2 - 14) }));
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg viewBox="0 0 220 220" className="w-full max-w-[230px]" role="img" aria-label="Diagram ketersediaan 24 jam">
+        {/* closed (out of hours): white ring with hairline edges */}
+        <circle cx={C} cy={C} r={R + W / 2} fill="none" stroke="#d4d4d4" strokeWidth="1" />
+        <circle cx={C} cy={C} r={R - W / 2} fill="none" stroke="#d4d4d4" strokeWidth="1" />
+        <path d={arc(0, 1440, R)} fill="none" stroke="#ffffff" strokeWidth={W - 2} />
+        {/* open window: green */}
+        <path d={arc(OPEN_MIN, CLOSE_MIN, R)} fill="none" stroke="#4ade80" strokeWidth={W - 2} />
+        {/* booked: red */}
+        {booked.map((r, idx) => {
+          const c = clamp(r);
+          if (c.end <= c.start) return null;
+          return (
+            <path key={idx} d={arc(c.start, c.end, R)} fill="none" stroke="#f87171" strokeWidth={W - 2} />
+          );
+        })}
+        {/* selection: blue */}
+        {selected && (
+          <path
+            d={arc(selected.start, selected.end, R)}
+            fill="none"
+            stroke="#3b82f6"
+            strokeWidth={W - 2}
+          />
+        )}
+        {/* hour ticks + labels */}
+        {ticks.map((t) => (
+          <line
+            key={t.h}
+            x1={t.i.x}
+            y1={t.i.y}
+            x2={t.o.x}
+            y2={t.o.y}
+            stroke={t.major ? "#525252" : "#a3a3a3"}
+            strokeWidth={t.major ? 1.6 : 0.8}
+          />
+        ))}
+        {labels.map((l) => (
+          <text
+            key={l.h}
+            x={l.p.x}
+            y={l.p.y}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize="11"
+            fill="#525252"
+          >
+            {l.h}
+          </text>
+        ))}
+      </svg>
+      <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-neutral-600">
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#4ade80]" /> Tersedia
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#f87171]" /> Terisi
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full border border-neutral-300 bg-white" /> Tutup
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#3b82f6]" /> Pilihan Anda
+        </span>
+      </div>
+    </div>
   );
 }

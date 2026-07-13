@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/supabase/requireUser";
 import { writeAuditLog } from "@/lib/bookings/audit";
 import { draftWhatsAppMessage } from "@/lib/bookings/template";
 import { isValidE164 } from "@/lib/bookings/phone";
+import { priceForMinutes, slotMinutes } from "@/lib/bookings/pricing";
 
 export async function GET(
   request: NextRequest,
@@ -114,9 +115,24 @@ export async function PATCH(
       );
     }
 
+    // Duration may change (1h <-> 2h). While payment is still pending the
+    // price follows the new duration; once paid, the settled amount stays.
+    const updates: Record<string, unknown> = { slot_id: newSlotId, booking_date: newDate };
+    if (existing.status === "pending_payment") {
+      const { data: newSlot } = await supabase
+        .from("time_slots")
+        .select("start_time, end_time")
+        .eq("id", newSlotId)
+        .maybeSingle();
+      if (newSlot) {
+        const price = priceForMinutes(slotMinutes(newSlot.start_time, newSlot.end_time));
+        if (price !== null) updates.amount_due = price;
+      }
+    }
+
     const { data: booking, error } = await supabase
       .from("bookings")
-      .update({ slot_id: newSlotId, booking_date: newDate })
+      .update(updates)
       .eq("id", id)
       .select("*, court:courts(*), slot:time_slots(*), whatsapp_logs(*), payments(*)")
       .single();
