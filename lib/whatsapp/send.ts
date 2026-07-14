@@ -5,12 +5,24 @@ export interface WhatsAppSendResult {
 }
 
 // Server-side only. Never import this from a client component.
+//
+// Uses the WhatsApp Business Platform Cloud API directly (Meta), not a
+// third-party wrapper. Docs: https://developers.facebook.com/docs/whatsapp/cloud-api
+//
+// Caveat that applies regardless of provider: this sends a free-form text
+// message, which Meta only delivers if the client messaged you within the
+// last 24 hours OR your number is a Meta-added test recipient. Because
+// clients here book via the website (never messaging first), the first
+// confirmation to a real client is a business-initiated message and Meta
+// requires those to use a pre-approved message TEMPLATE, not free text.
+// Register a template ("booking_confirmation" or similar) in Meta Business
+// Manager, then switch the request body below from `type: "text"` to
+// `type: "template"` once approved.
 export async function sendWhatsAppMessage(to: string, body: string): Promise<WhatsAppSendResult> {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM;
+  const token = process.env.META_WHATSAPP_TOKEN;
+  const phoneNumberId = process.env.META_WHATSAPP_PHONE_NUMBER_ID;
 
-  if (!sid || !token || !from) {
+  if (!token || !phoneNumberId) {
     // No WhatsApp API configured. The admin already reviewed and approved
     // the draft by clicking Send, so we log it as sent (copy-paste /
     // manual-send fallback described in docs/ARCHITECTURE.md).
@@ -18,29 +30,28 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<Wha
   }
 
   try {
-    const auth = Buffer.from(`${sid}:${token}`).toString("base64");
-    const params = new URLSearchParams({
-      To: `whatsapp:${to}`,
-      From: `whatsapp:${from}`,
-      Body: body,
-    });
-
-    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
       method: "POST",
       headers: {
-        Authorization: `Basic ${auth}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-      body: params,
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        // Meta expects the destination in E.164 digits with no leading '+'.
+        to: to.replace(/^\+/, ""),
+        type: "text",
+        text: { body },
+      }),
     });
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      return {
-        ok: false,
-        simulated: false,
-        error: typeof data.message === "string" ? data.message : `WhatsApp API error (${res.status})`,
-      };
+      const message =
+        typeof data?.error?.message === "string"
+          ? data.error.message
+          : `WhatsApp API error (${res.status})`;
+      return { ok: false, simulated: false, error: message };
     }
 
     return { ok: true, simulated: false };
