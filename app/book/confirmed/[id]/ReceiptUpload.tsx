@@ -19,8 +19,10 @@ export default function ReceiptUpload({
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "uploading" | "verifying">("idle");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [verified, setVerified] = useState(false);
 
   async function handleUpload() {
     if (!file) return;
@@ -35,6 +37,7 @@ export default function ReceiptUpload({
     }
 
     setBusy(true);
+    setPhase("uploading");
     try {
       const supabase = createClient();
       const ext = file.name.split(".").pop() || "dat";
@@ -58,12 +61,30 @@ export default function ReceiptUpload({
         return;
       }
 
+      // Ask the server to auto-verify the proof. If it passes every check the
+      // booking is confirmed and the WhatsApp confirmation is sent immediately;
+      // otherwise it silently falls back to manual admin review. A failure here
+      // must never lose the upload the client already made.
+      setPhase("verifying");
+      try {
+        const res = await fetch("/api/receipts/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: bookingId, phone }),
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.verified) setVerified(true);
+      } catch {
+        // Verification unreachable — the receipt is still uploaded for the admin.
+      }
+
       setDone(true);
       router.refresh();
     } catch {
       setError("Terjadi kesalahan saat mengunggah.");
     } finally {
       setBusy(false);
+      setPhase("idle");
     }
   }
 
@@ -76,9 +97,16 @@ export default function ReceiptUpload({
       </p>
 
       {done ? (
-        <div className="rounded border border-emerald-200 bg-emerald-50 text-emerald-800 px-3 py-2 text-sm">
-          Bukti pembayaran berhasil diunggah. Admin akan segera memverifikasi.
-        </div>
+        verified ? (
+          <div className="rounded border border-emerald-200 bg-emerald-50 text-emerald-800 px-3 py-2 text-sm">
+            Pembayaran terverifikasi! Pemesanan Anda telah dikonfirmasi dan konfirmasi telah dikirim
+            melalui WhatsApp.
+          </div>
+        ) : (
+          <div className="rounded border border-emerald-200 bg-emerald-50 text-emerald-800 px-3 py-2 text-sm">
+            Bukti pembayaran berhasil diunggah. Admin akan segera memverifikasi.
+          </div>
+        )
       ) : (
         <div className="space-y-2">
           <input
@@ -93,7 +121,11 @@ export default function ReceiptUpload({
             disabled={busy || !file}
             className="w-full rounded bg-neutral-900 text-white text-sm font-medium py-2 hover:bg-neutral-800 disabled:opacity-40"
           >
-            {busy ? "Mengunggah…" : "Unggah Bukti"}
+            {phase === "verifying"
+              ? "Memverifikasi…"
+              : phase === "uploading"
+                ? "Mengunggah…"
+                : "Unggah Bukti"}
           </button>
         </div>
       )}

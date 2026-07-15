@@ -30,6 +30,8 @@ export const AUDIT_LABELS: Record<string, string> = {
   "whatsapp.failed": "Pengiriman WhatsApp gagal",
   "payment.received": "Pembayaran diterima",
   "receipt.uploaded": "Bukti pembayaran diunggah",
+  "receipt.verified": "Bukti pembayaran terverifikasi otomatis",
+  "receipt.verification_failed": "Verifikasi bukti otomatis gagal",
 };
 
 export function labelForAction(action: string): string {
