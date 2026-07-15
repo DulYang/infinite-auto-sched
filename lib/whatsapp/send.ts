@@ -35,14 +35,24 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<Wha
     });
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      const message =
-        typeof data?.message === "string"
-          ? data.message
-          : typeof data?.error === "string"
-            ? data.error
-            : `WAHA error (${res.status})`;
-      return { ok: false, simulated: false, error: message };
+      // Try structured WAHA error JSON first; fall back to raw response text
+      // (e.g. an HTML page from a WAF/reverse-proxy in front of WAHA, which
+      // isn't JSON at all) so failures stay diagnosable instead of collapsing
+      // into a bare "WAHA error (403)" with no detail.
+      const raw = await res.text();
+      let message = "";
+      try {
+        const data = JSON.parse(raw);
+        message =
+          (typeof data?.message === "string" && data.message) ||
+          (typeof data?.error === "string" && data.error) ||
+          (data?.exception && typeof data.exception.message === "string" && data.exception.message) ||
+          "";
+      } catch {
+        // Not JSON — use the raw body (truncated) if it has content.
+        message = raw.trim().slice(0, 300);
+      }
+      return { ok: false, simulated: false, error: message || `WAHA error (${res.status})` };
     }
 
     return { ok: true, simulated: false };

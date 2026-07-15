@@ -5,10 +5,21 @@ import {
   draftAdminNotificationMessage,
 } from "@/lib/bookings/template";
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Gap between individual WAHA sends. Firing several messages at once (client
+// + multiple admins via Promise.all) got rejected with a bare, message-less
+// 403 in testing — the signature of a burst/rate-limit guard (WAHA's own or
+// a WAF in front of it) — while sending one at a time worked reliably.
+const SEND_GAP_MS = 1500;
+
 // Fires the two automatic notifications for a freshly-created booking:
 // payment instructions to the client, and a new-booking alert to admin
-// WhatsApp numbers. Never throws — a notification failure must not break
-// booking creation; failures are logged via log_whatsapp_message instead.
+// WhatsApp numbers. Sent SEQUENTIALLY, not concurrently (see SEND_GAP_MS).
+// Never throws — a notification failure must not break booking creation;
+// failures are logged via log_whatsapp_message instead.
 export async function notifyNewBooking(
   supabase: SupabaseClient,
   booking: {
@@ -27,9 +38,23 @@ export async function notifyNewBooking(
   if (!process.env.WAHA_BASE_URL) return;
 
   try {
-    await Promise.all([sendPaymentInstructions(), sendAdminAlerts()]);
+    await sendPaymentInstructions();
+    await sleep(SEND_GAP_MS);
+    await sendAdminAlerts();
   } catch {
     // Defense in depth; the inner calls already swallow their own errors.
+  }
+
+  async function sendOne(recipient: string, text: string, messageType: string) {
+    const result = await sendWhatsAppMessage(recipient, text);
+    await supabase.rpc("log_whatsapp_message", {
+      p_booking_id: booking.id,
+      p_recipient_phone: recipient,
+      p_message_body: text,
+      p_message_type: messageType,
+      p_send_status: result.ok ? "sent" : "failed",
+      p_error_message: result.error ?? null,
+    });
   }
 
   async function sendPaymentInstructions() {
@@ -50,15 +75,7 @@ export async function notifyNewBooking(
       accountName,
     });
 
-    const result = await sendWhatsAppMessage(booking.client_phone, text);
-    await supabase.rpc("log_whatsapp_message", {
-      p_booking_id: booking.id,
-      p_recipient_phone: booking.client_phone,
-      p_message_body: text,
-      p_message_type: "payment_instructions",
-      p_send_status: result.ok ? "sent" : "failed",
-      p_error_message: result.error ?? null,
-    });
+    await sendOne(booking.client_phone, text, "payment_instructions");
   }
 
   async function sendAdminAlerts() {
@@ -78,18 +95,9 @@ export async function notifyNewBooking(
       amountDue: booking.amount_due,
     });
 
-    await Promise.all(
-      adminNumbers.map(async (number) => {
-        const result = await sendWhatsAppMessage(number, text);
-        await supabase.rpc("log_whatsapp_message", {
-          p_booking_id: booking.id,
-          p_recipient_phone: number,
-          p_message_body: text,
-          p_message_type: "admin_notification",
-          p_send_status: result.ok ? "sent" : "failed",
-          p_error_message: result.error ?? null,
-        });
-      }),
-    );
+    for (let i = 0; i < adminNumbers.length; i++) {
+      await sendOne(adminNumbers[i], text, "admin_notification");
+      if (i < adminNumbers.length - 1) await sleep(SEND_GAP_MS);
+    }
   }
 }
