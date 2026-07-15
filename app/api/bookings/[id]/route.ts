@@ -179,6 +179,7 @@ export async function PATCH(
           message_draft_source: "template_engine",
           message_draft_confidence: isValidE164(booking.client_phone) ? 0.99 : 0.5,
           message_draft_review_status: "unreviewed",
+          message_type: "confirmation",
         })
         .select("*")
         .single();
@@ -286,6 +287,7 @@ export async function PATCH(
         message_draft_source: "template_engine",
         message_draft_confidence: isValidE164(booking.client_phone) ? 0.99 : 0.5,
         message_draft_review_status: "unreviewed",
+        message_type: "confirmation",
       })
       .select("*")
       .single();
@@ -298,7 +300,11 @@ export async function PATCH(
         details: { booking_id: booking.id },
         performedBy: "system",
       });
-      booking.whatsapp_logs = [log];
+      // Append rather than overwrite — booking.whatsapp_logs already carries
+      // the payment_instructions/admin_notification rows from the earlier
+      // select(), and dropping them here would blank the admin list's
+      // notification-failure badge until the next full refresh.
+      booking.whatsapp_logs = [...(booking.whatsapp_logs ?? []), log];
     }
   }
 

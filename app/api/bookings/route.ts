@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/supabase/requireUser";
 import { isValidE164, PHONE_FORMAT_ERROR } from "@/lib/bookings/phone";
 import { writeAuditLog } from "@/lib/bookings/audit";
+import { notifyNewBooking } from "@/lib/whatsapp/notify";
 
 export async function GET(request: NextRequest) {
   const user = await requireUser();
@@ -126,6 +127,18 @@ export async function POST(request: NextRequest) {
     },
     performedBy: "system",
   });
+
+  // Notify the client (BCA payment instructions) and admin WhatsApp numbers.
+  // Awaited so it reliably completes on serverless, but never throws — a
+  // notification failure must not fail the booking itself.
+  const { data: slot } = await supabase
+    .from("time_slots")
+    .select("start_time, end_time")
+    .eq("id", slotId)
+    .maybeSingle();
+  if (slot) {
+    await notifyNewBooking(supabase, booking, court, slot);
+  }
 
   return NextResponse.json({ booking }, { status: 201 });
 }

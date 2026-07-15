@@ -4,53 +4,44 @@ export interface WhatsAppSendResult {
   error?: string;
 }
 
-// Server-side only. Never import this from a client component.
-//
-// Uses the WhatsApp Business Platform Cloud API directly (Meta), not a
-// third-party wrapper. Docs: https://developers.facebook.com/docs/whatsapp/cloud-api
-//
-// Caveat that applies regardless of provider: this sends a free-form text
-// message, which Meta only delivers if the client messaged you within the
-// last 24 hours OR your number is a Meta-added test recipient. Because
-// clients here book via the website (never messaging first), the first
-// confirmation to a real client is a business-initiated message and Meta
-// requires those to use a pre-approved message TEMPLATE, not free text.
-// Register a template ("booking_confirmation" or similar) in Meta Business
-// Manager, then switch the request body below from `type: "text"` to
-// `type: "template"` once approved.
+// Server-side only. Sends via a WAHA (WhatsApp HTTP API) instance connected
+// to a real WhatsApp number via a scanned QR session — not the official
+// Business Platform, so there's no 24-hour session window or approved
+// message templates to worry about; any message can be sent to any number
+// at any time, same as chatting normally. Docs: https://waha.devlike.pro
 export async function sendWhatsAppMessage(to: string, body: string): Promise<WhatsAppSendResult> {
-  const token = process.env.META_WHATSAPP_TOKEN;
-  const phoneNumberId = process.env.META_WHATSAPP_PHONE_NUMBER_ID;
+  const baseUrl = process.env.WAHA_BASE_URL;
+  const apiKey = process.env.WAHA_API_KEY;
+  const session = process.env.WAHA_SESSION || "default";
 
-  if (!token || !phoneNumberId) {
-    // No WhatsApp API configured. The admin already reviewed and approved
-    // the draft by clicking Send, so we log it as sent (copy-paste /
-    // manual-send fallback described in docs/ARCHITECTURE.md).
+  if (!baseUrl) {
+    // No WAHA instance configured yet. The admin already reviewed and
+    // approved the draft by clicking Send, so we log it as sent (copy-paste
+    // / manual-send fallback described in docs/ARCHITECTURE.md).
     return { ok: true, simulated: true };
   }
 
   try {
-    const res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+    // WAHA expects a chatId like "6281234567890@c.us" — digits only, no '+'.
+    const chatId = `${to.replace(/\D/g, "")}@c.us`;
+
+    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/sendText`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...(apiKey ? { "X-Api-Key": apiKey } : {}),
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        // Meta expects the destination in E.164 digits with no leading '+'.
-        to: to.replace(/^\+/, ""),
-        type: "text",
-        text: { body },
-      }),
+      body: JSON.stringify({ session, chatId, text: body }),
     });
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       const message =
-        typeof data?.error?.message === "string"
-          ? data.error.message
-          : `WhatsApp API error (${res.status})`;
+        typeof data?.message === "string"
+          ? data.message
+          : typeof data?.error === "string"
+            ? data.error
+            : `WAHA error (${res.status})`;
       return { ok: false, simulated: false, error: message };
     }
 

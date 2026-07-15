@@ -58,6 +58,8 @@ export interface BookingWithRelations extends Booking {
   payments?: Payment[];
 }
 
+export type WhatsAppMessageType = "confirmation" | "payment_instructions" | "admin_notification";
+
 export interface WhatsAppLog {
   id: string;
   user_id: string | null;
@@ -71,6 +73,7 @@ export interface WhatsAppLog {
   message_draft_source: string | null;
   message_draft_confidence: number | null;
   message_draft_review_status: ReviewStatus | null;
+  message_type: WhatsAppMessageType;
   created_at: string;
 }
 

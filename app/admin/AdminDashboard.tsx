@@ -176,6 +176,7 @@ export default function AdminDashboard() {
                   <div className="flex flex-col gap-1 items-end shrink-0">
                     <StatusBadge status={booking.status} />
                     <WhatsAppBadge booking={booking} />
+                    {paymentInstructionsFailed(booking) && <PaymentInfoFailedBadge />}
                     {booking.receipt_path && <ReceiptBadge />}
                   </div>
                 </div>
@@ -267,6 +268,7 @@ export default function AdminDashboard() {
                       <div className="flex flex-col gap-1 items-start">
                         <StatusBadge status={booking.status} />
                         <WhatsAppBadge booking={booking} />
+                        {paymentInstructionsFailed(booking) && <PaymentInfoFailedBadge />}
                         {booking.receipt_path && <ReceiptBadge />}
                       </div>
                     </td>
@@ -331,12 +333,26 @@ function ReceiptBadge() {
   );
 }
 
+function PaymentInfoFailedBadge() {
+  return (
+    <span className="rounded-full bg-red-100 text-red-700 px-2.5 py-0.5 text-xs font-medium">
+      Info Pembayaran Gagal
+    </span>
+  );
+}
+
 export function latestWhatsAppLog(booking: BookingWithRelations) {
-  const logs = booking.whatsapp_logs ?? [];
+  const logs = (booking.whatsapp_logs ?? []).filter((l) => l.message_type === "confirmation");
   if (logs.length === 0) return null;
   return [...logs].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   )[0];
+}
+
+function paymentInstructionsFailed(booking: BookingWithRelations): boolean {
+  return (booking.whatsapp_logs ?? []).some(
+    (l) => l.message_type === "payment_instructions" && l.send_status === "failed",
+  );
 }
 
 function WhatsAppBadge({ booking }: { booking: BookingWithRelations }) {

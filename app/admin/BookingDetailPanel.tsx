@@ -122,9 +122,15 @@ export default function BookingDetailPanel({
     if (ok) setShowReschedule(false);
   }
 
-  const activeLog = [...logs].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  )[0] as WhatsAppLog | undefined;
+  const activeLog = [...logs]
+    .filter((l) => l.message_type === "confirmation")
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] as
+    | WhatsAppLog
+    | undefined;
+
+  const notificationLogs = [...logs]
+    .filter((l) => l.message_type !== "confirmation")
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   // Recognize returning clients: fetch other bookings under the same phone.
   useEffect(() => {
@@ -329,6 +335,22 @@ export default function BookingDetailPanel({
             </div>
           )}
 
+          {notificationLogs.length > 0 && (
+            <div className="pt-2">
+              <h3 className="font-semibold mb-2">Notifikasi Otomatis</h3>
+              <ul className="divide-y divide-neutral-100 rounded border border-neutral-200">
+                {notificationLogs.map((l) => (
+                  <li key={l.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                    <span className="text-neutral-600">
+                      {notificationTypeLabel(l.message_type)} · {l.recipient_phone}
+                    </span>
+                    <SendStatusBadge status={l.send_status} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {booking.status !== "pending_payment" && (
             <div className="pt-2">
               <h3 className="font-semibold mb-2">Konfirmasi WhatsApp</h3>
@@ -512,6 +534,14 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
       <dd className="font-medium text-neutral-900 text-right">{value}</dd>
     </div>
   );
+}
+
+function notificationTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    payment_instructions: "Info pembayaran ke klien",
+    admin_notification: "Notifikasi ke admin",
+  };
+  return labels[type] ?? type;
 }
 
 function statusLabel(status: string): string {
