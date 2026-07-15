@@ -25,7 +25,15 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<Wha
     // WAHA expects a chatId like "6281234567890@c.us" — digits only, no '+'.
     const chatId = `${to.replace(/\D/g, "")}@c.us`;
 
-    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/sendText`, {
+    // Tolerate a WAHA_BASE_URL set without a scheme (e.g. "waha.example.com"),
+    // which otherwise makes fetch() throw "Failed to parse URL". Default to
+    // https; strip any trailing slash.
+    const normalizedBase = (/^https?:\/\//i.test(baseUrl) ? baseUrl : `https://${baseUrl}`).replace(
+      /\/$/,
+      "",
+    );
+
+    const res = await fetch(`${normalizedBase}/api/sendText`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
