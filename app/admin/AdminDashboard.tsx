@@ -177,7 +177,11 @@ export default function AdminDashboard() {
                     <StatusBadge status={booking.status} />
                     <WhatsAppBadge booking={booking} />
                     {paymentInstructionsFailed(booking) && <PaymentInfoFailedBadge />}
-                    {booking.receipt_path && <ReceiptBadge />}
+                    {wasAutoVerified(booking) ? (
+                      <AutoVerifiedBadge />
+                    ) : (
+                      booking.receipt_path && <ReceiptBadge />
+                    )}
                   </div>
                 </div>
 
@@ -337,6 +341,23 @@ function PaymentInfoFailedBadge() {
   return (
     <span className="rounded-full bg-red-100 text-red-700 px-2.5 py-0.5 text-xs font-medium">
       Info Pembayaran Gagal
+    </span>
+  );
+}
+
+// True when the booking was confirmed by the automatic receipt-OCR verifier
+// (a paid payment with provider 'receipt_ocr'), as opposed to a manual admin
+// confirmation — lets the admin tell auto-confirmed bookings apart at a glance.
+function wasAutoVerified(booking: BookingWithRelations): boolean {
+  return (booking.payments ?? []).some(
+    (p) => p.provider === "receipt_ocr" && p.status === "paid",
+  );
+}
+
+function AutoVerifiedBadge() {
+  return (
+    <span className="rounded-full bg-indigo-100 text-indigo-800 px-2.5 py-0.5 text-xs font-medium">
+      🤖 Terverifikasi
     </span>
   );
 }

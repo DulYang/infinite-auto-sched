@@ -235,6 +235,13 @@ export default function BookingDetailPanel({
             <StatusBadge status={booking.status} />
           </div>
 
+          {confirmationMethod(booking) && (
+            <div className="flex items-center justify-between">
+              <span className="text-neutral-500">Metode Konfirmasi</span>
+              <ConfirmationMethodBadge method={confirmationMethod(booking)!} />
+            </div>
+          )}
+
           {priorBookings.length > 0 && (
             <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2.5">
               <p className="text-sm font-medium text-emerald-900">
@@ -557,11 +564,40 @@ function statusLabel(status: string): string {
 function paymentProviderLabel(provider: string): string {
   const labels: Record<string, string> = {
     manual: "Manual (admin)",
+    receipt_ocr: "Verifikasi bukti otomatis (AI)",
     gcash: "GCash",
     bank_transfer: "Transfer Bank",
     gateway: "Gateway Pembayaran",
   };
   return labels[provider] ?? provider;
+}
+
+// How the booking's payment was confirmed, derived from the recorded payment
+// provider. Returns null while still pending (no paid payment yet).
+function confirmationMethod(
+  booking: BookingWithRelations,
+): "auto" | "manual" | "gateway" | null {
+  const paid = (booking.payments ?? []).filter((p) => p.status === "paid");
+  if (paid.length === 0) return null;
+  // Prefer the most recent paid payment's provider.
+  const latest = [...paid].sort(
+    (a, b) => new Date(b.paid_at ?? 0).getTime() - new Date(a.paid_at ?? 0).getTime(),
+  )[0];
+  if (latest.provider === "receipt_ocr") return "auto";
+  if (latest.provider === "gateway") return "gateway";
+  return "manual";
+}
+
+function ConfirmationMethodBadge({ method }: { method: "auto" | "manual" | "gateway" }) {
+  const config: Record<string, { label: string; className: string }> = {
+    auto: { label: "🤖 Terverifikasi otomatis", className: "bg-indigo-100 text-indigo-800" },
+    gateway: { label: "Gateway pembayaran", className: "bg-sky-100 text-sky-800" },
+    manual: { label: "Dikonfirmasi manual", className: "bg-neutral-200 text-neutral-700" },
+  };
+  const { label, className } = config[method];
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
+  );
 }
 
 function PaymentStatusBadge({ status }: { status: string }) {
