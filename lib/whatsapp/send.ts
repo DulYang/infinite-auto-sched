@@ -65,10 +65,20 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<Wha
 
     return { ok: true, simulated: false };
   } catch (err) {
-    return {
-      ok: false,
-      simulated: false,
-      error: err instanceof Error ? err.message : "WhatsApp send failed.",
-    };
+    // Node's fetch reports network-level failures (DNS, TLS, connection
+    // refused) as a bare "fetch failed" and puts the real reason on err.cause.
+    // Surface it so problems like an unresolvable host stay diagnosable.
+    let message = err instanceof Error ? err.message : "WhatsApp send failed.";
+    const cause = (err as { cause?: unknown })?.cause;
+    if (cause) {
+      const causeMsg =
+        cause instanceof Error
+          ? cause.message
+          : typeof cause === "object" && cause && "code" in cause
+            ? String((cause as { code: unknown }).code)
+            : String(cause);
+      if (causeMsg && causeMsg !== message) message = `${message}: ${causeMsg}`;
+    }
+    return { ok: false, simulated: false, error: message };
   }
 }
