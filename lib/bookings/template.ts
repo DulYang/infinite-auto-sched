@@ -48,7 +48,10 @@ Setelah transfer, admin akan segera memverifikasi dan mengonfirmasi pemesanan An
 }
 
 // Sent to admin WhatsApp numbers automatically the moment a client books, so
-// admins know to watch for the incoming transfer.
+// admins know to watch for the incoming transfer. The wording is rotated per
+// recipient (`variant`): sending byte-identical text to several numbers
+// back-to-back is a classic bot fingerprint WhatsApp's anti-spam keys on,
+// and it contributed to the number getting banned once already.
 export function draftAdminNotificationMessage(params: {
   clientName: string;
   clientPhone: string;
@@ -57,11 +60,26 @@ export function draftAdminNotificationMessage(params: {
   endTime: string;
   bookingDate: string;
   amountDue: number;
+  variant?: number;
 }): string {
   const { clientName, clientPhone, courtName, startTime, endTime, bookingDate, amountDue } = params;
-  return `🔔 Pemesanan baru!
+  const when = `${formatDisplayDate(bookingDate)} pukul ${formatTime(startTime)}-${formatTime(endTime)}`;
+
+  const variants = [
+    `🔔 Pemesanan baru!
 Klien: ${clientName} (${clientPhone})
-${courtName} — ${formatDisplayDate(bookingDate)} pukul ${formatTime(startTime)}-${formatTime(endTime)}
+${courtName} — ${when}
 Jumlah: ${formatCurrency(amountDue)}
-Status: Menunggu pembayaran`;
+Status: Menunggu pembayaran`,
+    `📥 Ada booking baru masuk.
+${clientName} (${clientPhone})
+${courtName}, ${when}
+Total ${formatCurrency(amountDue)} — menunggu pembayaran.`,
+    `Info pemesanan baru 🏀
+Nama: ${clientName}
+No. HP: ${clientPhone}
+Jadwal: ${courtName}, ${when}
+Tagihan: ${formatCurrency(amountDue)} (belum dibayar)`,
+  ];
+  return variants[Math.abs(params.variant ?? 0) % variants.length];
 }

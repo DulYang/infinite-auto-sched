@@ -5,6 +5,12 @@ import { isValidE164, PHONE_FORMAT_ERROR } from "@/lib/bookings/phone";
 import { writeAuditLog } from "@/lib/bookings/audit";
 import { notifyNewBooking } from "@/lib/whatsapp/notify";
 
+// The POST handler responds quickly, but notifyNewBooking schedules admin
+// WhatsApp alerts via after() with long randomized anti-ban gaps (up to
+// ~100s total) that run past the response — the function must stay alive
+// for them. See lib/whatsapp/notify.ts.
+export const maxDuration = 180;
+
 export async function GET(request: NextRequest) {
   const user = await requireUser();
   if (!user) {

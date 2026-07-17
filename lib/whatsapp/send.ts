@@ -9,6 +9,33 @@ export interface WhatsAppSendResult {
 // Business Platform, so there's no 24-hour session window or approved
 // message templates to worry about; any message can be sent to any number
 // at any time, same as chatting normally. Docs: https://waha.devlike.pro
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Best-effort human-behavior simulation before a send, per WAHA's anti-ban
+// guidance (startTyping → pause scaled to message length → stopTyping →
+// send). Bot-like instant sends are one of the signals WhatsApp's anti-spam
+// systems key on; a typing window makes the traffic look like a person.
+// Failures are swallowed — typing is cosmetic, the message itself matters.
+async function simulateTyping(
+  normalizedBase: string,
+  headers: Record<string, string>,
+  session: string,
+  chatId: string,
+  textLength: number,
+) {
+  try {
+    const body = JSON.stringify({ session, chatId });
+    await fetch(`${normalizedBase}/api/startTyping`, { method: "POST", headers, body });
+    // ~1.5s base + ~15ms per character, capped at 5s, plus jitter.
+    await sleep(Math.min(5000, 1500 + textLength * 15) + Math.random() * 1000);
+    await fetch(`${normalizedBase}/api/stopTyping`, { method: "POST", headers, body });
+  } catch {
+    // Ignore — proceed straight to the send.
+  }
+}
+
 export async function sendWhatsAppMessage(to: string, body: string): Promise<WhatsAppSendResult> {
   const baseUrl = process.env.WAHA_BASE_URL;
   const apiKey = process.env.WAHA_API_KEY;
@@ -33,12 +60,16 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<Wha
       "",
     );
 
+    const headers = {
+      "Content-Type": "application/json",
+      ...(apiKey ? { "X-Api-Key": apiKey } : {}),
+    };
+
+    await simulateTyping(normalizedBase, headers, session, chatId, body.length);
+
     const res = await fetch(`${normalizedBase}/api/sendText`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(apiKey ? { "X-Api-Key": apiKey } : {}),
-      },
+      headers,
       body: JSON.stringify({ session, chatId, text: body }),
     });
 

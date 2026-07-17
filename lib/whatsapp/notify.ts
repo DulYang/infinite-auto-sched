@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/send";
 import {
@@ -9,15 +10,28 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Gap between individual WAHA sends. Firing several messages at once (client
-// + multiple admins via Promise.all) got rejected with a bare, message-less
-// 403 in testing — the signature of a burst/rate-limit guard (WAHA's own or
-// a WAF in front of it) — while sending one at a time worked reliably.
-const SEND_GAP_MS = 1500;
+function randBetween(minMs: number, maxMs: number) {
+  return minMs + Math.floor(Math.random() * (maxMs - minMs));
+}
 
-// Fires the two automatic notifications for a freshly-created booking:
-// payment instructions to the client, and a new-booking alert to admin
-// WhatsApp numbers. Sent SEQUENTIALLY, not concurrently (see SEND_GAP_MS).
+// Gap before each ADMIN send. WAHA's anti-ban guidance is a random 30–60s
+// between consecutive messages; the number was banned once for "suspicious
+// spamming" while we sent with a 1.5s gap, so admin alerts now go out with
+// long randomized spacing. (The tiny gap also once triggered a burst 403
+// from WAHA/WAF — this supersedes that fix.) The delays run AFTER the HTTP
+// response via next/server `after()`, so the booking flow is never slowed.
+const ADMIN_GAP_MIN_MS = 25_000;
+const ADMIN_GAP_MAX_MS = 45_000;
+// If many admin numbers are configured, shrink the gaps so the total stays
+// inside the function's execution budget (see maxDuration on the route).
+const ADMIN_TOTAL_BUDGET_MS = 100_000;
+
+// Fires the two automatic notifications for a freshly-created booking.
+// PRIORITY ORDER (deliberate):
+//   1. Payment instructions to the CLIENT — sent first, inline, awaited.
+//      This is the business-critical message.
+//   2. New-booking alerts to admin numbers — scheduled in the background
+//      (after the response is sent) with long randomized gaps between sends.
 // Never throws — a notification failure must not break booking creation;
 // failures are logged via log_whatsapp_message instead.
 export async function notifyNewBooking(
@@ -39,11 +53,19 @@ export async function notifyNewBooking(
 
   try {
     await sendPaymentInstructions();
-    await sleep(SEND_GAP_MS);
-    await sendAdminAlerts();
   } catch {
-    // Defense in depth; the inner calls already swallow their own errors.
+    // Defense in depth; sendOne already swallows most errors.
   }
+
+  // Admin alerts continue after the HTTP response has been returned, so the
+  // long anti-ban gaps cost the booking client nothing.
+  after(async () => {
+    try {
+      await sendAdminAlerts();
+    } catch {
+      // Same: never let notification failures surface anywhere fatal.
+    }
+  });
 
   async function sendOne(recipient: string, text: string, messageType: string) {
     const result = await sendWhatsAppMessage(recipient, text);
@@ -85,19 +107,29 @@ export async function notifyNewBooking(
       .filter(Boolean);
     if (adminNumbers.length === 0) return;
 
-    const text = draftAdminNotificationMessage({
-      clientName: booking.client_name,
-      clientPhone: booking.client_phone,
-      courtName: court.name,
-      startTime: slot.start_time,
-      endTime: slot.end_time,
-      bookingDate: booking.booking_date,
-      amountDue: booking.amount_due,
-    });
+    const gapMax = Math.min(
+      ADMIN_GAP_MAX_MS,
+      Math.floor(ADMIN_TOTAL_BUDGET_MS / adminNumbers.length),
+    );
+    const gapMin = Math.min(ADMIN_GAP_MIN_MS, Math.floor(gapMax * 0.6));
 
     for (let i = 0; i < adminNumbers.length; i++) {
+      // Gap BEFORE every admin send — the first one also spaces the admin
+      // alert away from the client message that just went out.
+      await sleep(randBetween(gapMin, gapMax));
+      const text = draftAdminNotificationMessage({
+        clientName: booking.client_name,
+        clientPhone: booking.client_phone,
+        courtName: court.name,
+        startTime: slot.start_time,
+        endTime: slot.end_time,
+        bookingDate: booking.booking_date,
+        amountDue: booking.amount_due,
+        // Rotate wording per recipient; offset by booking id so the same
+        // admin doesn't always receive the same phrasing either.
+        variant: i + (booking.id.charCodeAt(0) % 3),
+      });
       await sendOne(adminNumbers[i], text, "admin_notification");
-      if (i < adminNumbers.length - 1) await sleep(SEND_GAP_MS);
     }
   }
 }
