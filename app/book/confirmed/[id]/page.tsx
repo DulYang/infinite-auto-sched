@@ -34,6 +34,10 @@ export default async function BookingConfirmedPage({
   ]);
 
   const isCancelled = booking.status === "cancelled";
+  // Admin WhatsApp number shown to the client so a mistyped WA number is
+  // caught (no message => wrong number, contact admin). Configurable via env;
+  // falls back to the known number if unset.
+  const adminWaDisplay = process.env.ADMIN_WA_DISPLAY || "+628980072000";
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6 sm:py-10">
@@ -58,7 +62,7 @@ export default async function BookingConfirmedPage({
       {!isCancelled && (
         <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-center">
           <p className="text-sm font-bold text-blue-900">
-            📱 Anda akan menerima pesan WhatsApp dari admin Infinite Courts di +628980072000.
+            📱 Anda akan menerima pesan WhatsApp dari admin Infinite Courts di {adminWaDisplay}.
           </p>
           <p className="mt-1 text-xs text-blue-800">
             Jika Anda tidak menerima pesan, kemungkinan nomor WhatsApp yang Anda masukkan keliru —
