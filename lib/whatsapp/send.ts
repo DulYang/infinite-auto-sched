@@ -88,11 +88,18 @@ async function checkNumberExists(
       digits,
     )}&session=${encodeURIComponent(config.session)}`;
     const res = await fetch(url, { method: "GET", headers: config.headers });
-    if (!res.ok) return { exists: null };
+    if (!res.ok) {
+      console.error("[waha:check-exists] non-ok", res.status, await res.text().catch(() => ""));
+      return { exists: null };
+    }
     const data = (await res.json()) as { numberExists?: boolean; chatId?: string };
-    if (typeof data?.numberExists !== "boolean") return { exists: null };
+    if (typeof data?.numberExists !== "boolean") {
+      console.error("[waha:check-exists] no numberExists field", JSON.stringify(data));
+      return { exists: null };
+    }
     return { exists: data.numberExists, chatId: data.chatId };
-  } catch {
+  } catch (e) {
+    console.error("[waha:check-exists] exception", e instanceof Error ? e.message : String(e));
     return { exists: null };
   }
 }
