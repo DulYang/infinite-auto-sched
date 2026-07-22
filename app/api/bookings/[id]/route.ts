@@ -224,6 +224,15 @@ export async function PATCH(
     .single();
 
   if (error) {
+    // Confirming a soft-held slot that another booking already holds confirmed
+    // (overlap constraint 23P01 / exact-slot unique 23505). Only one booking
+    // per slot may be confirmed — tell the admin plainly.
+    if (action === "confirm" && (error.code === "23P01" || error.code === "23505")) {
+      return NextResponse.json(
+        { error: "Slot ini sudah dikonfirmasi untuk pemesanan lain. Batalkan salah satu terlebih dahulu." },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

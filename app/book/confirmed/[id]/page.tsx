@@ -25,9 +25,12 @@ export default async function BookingConfirmedPage({
     notFound();
   }
 
-  const [{ data: court }, { data: slot }] = await Promise.all([
+  const [{ data: court }, { data: slot }, { data: contested }] = await Promise.all([
     supabase.from("courts").select("*").eq("id", booking.court_id).maybeSingle<Court>(),
     supabase.from("time_slots").select("*").eq("id", booking.slot_id).maybeSingle<TimeSlot>(),
+    // Contested = another active booking overlaps this slot. When true, the
+    // self-serve receipt upload is disabled and the admin confirms manually.
+    supabase.rpc("booking_contested", { p_id: id }) as unknown as { data: boolean | null },
   ]);
 
   const isCancelled = booking.status === "cancelled";
@@ -66,13 +69,23 @@ export default async function BookingConfirmedPage({
         <Row label="Status" value={<StatusBadge status={booking.status} />} />
       </dl>
 
-      {booking.status === "pending_payment" && (
-        <ReceiptUpload
-          bookingId={booking.id}
-          phone={booking.client_phone}
-          hasReceipt={!!booking.receipt_path}
-        />
-      )}
+      {booking.status === "pending_payment" &&
+        (contested ? (
+          <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+            <h2 className="font-semibold mb-1">Menunggu Konfirmasi Admin</h2>
+            <p className="text-xs text-amber-800">
+              Slot ini sedang diminati lebih dari satu pemesan, jadi konfirmasi dilakukan oleh
+              admin — bukan otomatis. Silakan selesaikan pembayaran; admin akan menghubungi Anda
+              dan mengonfirmasi pemesanan. Pemesan yang membayar lebih dulu akan diprioritaskan.
+            </p>
+          </div>
+        ) : (
+          <ReceiptUpload
+            bookingId={booking.id}
+            phone={booking.client_phone}
+            hasReceipt={!!booking.receipt_path}
+          />
+        ))}
 
       {(booking.status === "pending_payment" || booking.status === "confirmed") && (
         <CancelBookingButton bookingId={booking.id} phone={booking.client_phone} />

@@ -9,7 +9,9 @@ import { formatCurrency } from "@/lib/bookings/currency";
 import { priceForMinutes, slotMinutes } from "@/lib/bookings/pricing";
 
 type LoadState = "loading" | "ready" | "error";
-type Range = { start: number; end: number };
+// 'confirmed' -> taken (red, unavailable); 'pending' -> soft hold
+// ("Belum Konfirmasi", yellow, still pickable).
+type Range = { start: number; end: number; state: "confirmed" | "pending" };
 
 const OPEN_MIN = 8 * 60; // 08:00
 const CLOSE_MIN = 22 * 60; // 22:00
@@ -105,25 +107,31 @@ export default function BookingForm() {
     loadRanges();
   }, [loadRanges]);
 
-  // Slots for the chosen duration, with availability computed against the
-  // booked ranges (the DB exclusion constraint remains the hard guard).
+  // Slots for the chosen duration. A slot is only truly TAKEN when it overlaps
+  // a CONFIRMED booking; overlapping only a PENDING booking makes it a soft
+  // hold ("Belum Konfirmasi") that's still pickable. The DB remains the hard
+  // guard (create_booking rejects a slot already confirmed).
   const startOptions = useMemo(() => {
     return timeSlots
       .filter((s) => slotMinutes(s.start_time, s.end_time) === durationMin)
       .map((s) => {
         const start = toMin(s.start_time);
         const end = toMin(s.end_time);
-        const taken = bookedRanges.some((r) => start < r.end && end > r.start);
-        return { slot: s, taken };
+        const overlaps = bookedRanges.filter((r) => start < r.end && end > r.start);
+        const taken = overlaps.some((r) => r.state === "confirmed");
+        const pending = !taken && overlaps.some((r) => r.state === "pending");
+        return { slot: s, taken, pending };
       })
       .sort((a, b) => toMin(a.slot.start_time) - toMin(b.slot.start_time));
   }, [timeSlots, durationMin, bookedRanges]);
 
+  // Confirmed slots are removed; pending (soft-hold) slots remain selectable.
   const availableOptions = startOptions.filter((o) => !o.taken);
   const selectedSlot = timeSlots.find((s) => s.id === selectedSlotId) ?? null;
+  const selectedSlotIsPending = startOptions.some((o) => o.slot.id === selectedSlotId && o.pending);
   const price = priceForMinutes(durationMin) ?? 0;
 
-  const selectedRange: Range | null = selectedSlot
+  const selectedRange: { start: number; end: number } | null = selectedSlot
     ? { start: toMin(selectedSlot.start_time), end: toMin(selectedSlot.end_time) }
     : null;
 
@@ -275,9 +283,10 @@ export default function BookingForm() {
                   <option value="">
                     {rangesState === "loading" ? "Memuat…" : "— Pilih jam mulai —"}
                   </option>
-                  {availableOptions.map(({ slot }) => (
+                  {availableOptions.map(({ slot, pending }) => (
                     <option key={slot.id} value={slot.id}>
                       {slot.label}
+                      {pending ? " — belum konfirmasi (bisa dipesan)" : ""}
                     </option>
                   ))}
                 </select>
@@ -293,6 +302,13 @@ export default function BookingForm() {
               <div className="rounded bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-900">
                 <span className="font-medium">{selectedSlot.label}</span> · Total{" "}
                 <span className="font-semibold">{formatCurrency(price)}</span>
+              </div>
+            )}
+
+            {selectedSlotIsPending && (
+              <div className="rounded bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                Slot ini masih menunggu pembayaran pemesan lain (belum dikonfirmasi). Anda tetap
+                bisa memesannya, namun konfirmasi akan dilakukan oleh admin — bukan otomatis.
               </div>
             )}
           </div>
@@ -383,7 +399,13 @@ function toMin(time: string): number {
 
 // 24-hour clock diagram: green = available (within 08.00-22.00), red =
 // booked, white = closed, blue = the user's current selection.
-function ClockDiagram({ booked, selected }: { booked: Range[]; selected: Range | null }) {
+function ClockDiagram({
+  booked,
+  selected,
+}: {
+  booked: Range[];
+  selected: { start: number; end: number } | null;
+}) {
   const C = 110;
   const R = 82;
   const W = 24;
@@ -430,12 +452,23 @@ function ClockDiagram({ booked, selected }: { booked: Range[]; selected: Range |
         <path d={arc(0, 1440, R)} fill="none" stroke="#ffffff" strokeWidth={W - 2} />
         {/* open window: green */}
         <path d={arc(OPEN_MIN, CLOSE_MIN, R)} fill="none" stroke="#4ade80" strokeWidth={W - 2} />
-        {/* booked: red */}
+        {/* pending soft-hold: yellow (drawn first so a later confirmed booking
+            on the same range paints over it in red) */}
         {booked.map((r, idx) => {
+          if (r.state !== "pending") return null;
           const c = clamp(r);
           if (c.end <= c.start) return null;
           return (
-            <path key={idx} d={arc(c.start, c.end, R)} fill="none" stroke="#f87171" strokeWidth={W - 2} />
+            <path key={`p${idx}`} d={arc(c.start, c.end, R)} fill="none" stroke="#facc15" strokeWidth={W - 2} />
+          );
+        })}
+        {/* booked (confirmed): red */}
+        {booked.map((r, idx) => {
+          if (r.state !== "confirmed") return null;
+          const c = clamp(r);
+          if (c.end <= c.start) return null;
+          return (
+            <path key={`c${idx}`} d={arc(c.start, c.end, R)} fill="none" stroke="#f87171" strokeWidth={W - 2} />
           );
         })}
         {/* selection: blue */}
@@ -479,6 +512,9 @@ function ClockDiagram({ booked, selected }: { booked: Range[]; selected: Range |
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#f87171]" /> Terisi
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#facc15]" /> Belum Konfirmasi
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 rounded-full border border-neutral-300 bg-white" /> Tutup

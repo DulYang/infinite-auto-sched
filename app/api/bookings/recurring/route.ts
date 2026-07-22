@@ -81,6 +81,18 @@ export async function POST(request: NextRequest) {
     d.setDate(d.getDate() + i * 7);
     const bookingDate = toDateInputValue(d);
 
+    // Pending bookings are soft holds and no longer trip the overlap
+    // constraint, so skip weeks that are already CONFIRMED for this slot
+    // (truly taken) explicitly rather than relying on an insert error.
+    const { data: takenRows } = await supabase.rpc("taken_slot_ids", {
+      p_court_id: courtId,
+      p_date: bookingDate,
+    });
+    if ((takenRows ?? []).some((r: { slot_id: string }) => r.slot_id === slotId)) {
+      skipped.push(bookingDate);
+      continue;
+    }
+
     const { data: booking, error } = await supabase
       .from("bookings")
       .insert({

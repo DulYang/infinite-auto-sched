@@ -34,6 +34,7 @@ export default function BookingDetailPanel({
   const [rescheduleSlotId, setRescheduleSlotId] = useState(booking.slot_id);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [takenSlotIds, setTakenSlotIds] = useState<Set<string>>(new Set());
+  const [pendingSlotIds, setPendingSlotIds] = useState<Set<string>>(new Set());
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
 
   // Receipts are in a private bucket; generate a short-lived signed URL for
@@ -99,6 +100,7 @@ export default function BookingDetailPanel({
       const availData = await availRes.json();
       setSlots(slotsData.timeSlots ?? []);
       setTakenSlotIds(new Set<string>(availData.takenSlotIds ?? []));
+      setPendingSlotIds(new Set<string>(availData.pendingSlotIds ?? []));
     } catch {
       // Non-fatal; the reschedule submit still validates server-side.
     }
@@ -109,6 +111,7 @@ export default function BookingDetailPanel({
       const res = await fetch(`/api/availability?date=${date}&courtId=${booking.court_id}&excludeBooking=${booking.id}`);
       const data = await res.json();
       setTakenSlotIds(new Set<string>(data.takenSlotIds ?? []));
+      setPendingSlotIds(new Set<string>(data.pendingSlotIds ?? []));
     } catch {
       // ignore
     }
@@ -492,12 +495,14 @@ export default function BookingDetailPanel({
                             .filter((s) => slotMinutes(s.start_time, s.end_time) === group.minutes)
                             .map((s) => {
                               // Availability already excludes this booking's own
-                              // range (excludeBooking), so taken = real conflict.
+                              // range (excludeBooking). taken = confirmed conflict
+                              // (blocked); pending = soft hold (still selectable).
                               const taken = takenSlotIds.has(s.id);
+                              const pending = !taken && pendingSlotIds.has(s.id);
                               return (
                                 <option key={s.id} value={s.id} disabled={taken}>
                                   {s.label}
-                                  {taken ? " — terisi" : ""}
+                                  {taken ? " — terisi" : pending ? " — belum konfirmasi" : ""}
                                 </option>
                               );
                             })}

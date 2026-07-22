@@ -14,16 +14,30 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "date dan courtId wajib diisi." }, { status: 400 });
   }
 
-  const { data, error } = await supabase.rpc("taken_slot_ids", {
-    p_court_id: courtId,
-    p_date: date,
-    p_exclude_booking: excludeBooking || null,
-  });
+  // taken = overlaps a CONFIRMED/COMPLETED booking (truly unavailable).
+  // pending = overlaps only a PENDING booking ("Belum Konfirmasi", still
+  // pickable — a soft hold the admin can override).
+  const [takenRes, pendingRes] = await Promise.all([
+    supabase.rpc("taken_slot_ids", {
+      p_court_id: courtId,
+      p_date: date,
+      p_exclude_booking: excludeBooking || null,
+    }),
+    supabase.rpc("pending_slot_ids", {
+      p_court_id: courtId,
+      p_date: date,
+      p_exclude_booking: excludeBooking || null,
+    }),
+  ]);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (takenRes.error || pendingRes.error) {
+    return NextResponse.json(
+      { error: (takenRes.error ?? pendingRes.error)?.message },
+      { status: 500 },
+    );
   }
 
-  const takenSlotIds = (data ?? []).map((row: { slot_id: string }) => row.slot_id);
-  return NextResponse.json({ takenSlotIds });
+  const takenSlotIds = (takenRes.data ?? []).map((row: { slot_id: string }) => row.slot_id);
+  const pendingSlotIds = (pendingRes.data ?? []).map((row: { slot_id: string }) => row.slot_id);
+  return NextResponse.json({ takenSlotIds, pendingSlotIds });
 }

@@ -22,9 +22,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const ranges = ((data ?? []) as { start_min: number; end_min: number }[]).map((r) => ({
+  const ranges = (
+    (data ?? []) as { start_min: number; end_min: number; state: string }[]
+  ).map((r) => ({
     start: r.start_min,
     end: r.end_min,
+    // 'confirmed' -> taken (red); 'pending' -> soft hold (yellow).
+    state: r.state === "confirmed" ? "confirmed" : "pending",
   }));
 
   return NextResponse.json({ ranges });

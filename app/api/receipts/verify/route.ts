@@ -67,6 +67,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Belum ada bukti pembayaran." }, { status: 400 });
   }
 
+  // Self-serve auto-verification is only for the SOLE claimant of a slot.
+  // Once a slot is contested (another active booking overlaps it), the admin
+  // must confirm exactly one booking manually — so we skip OCR entirely and
+  // route it to manual review. (Enforced server-side, not just in the UI.)
+  const { data: contested } = await supabase.rpc("booking_contested", { p_id: booking.id });
+  if (contested === true) {
+    return NextResponse.json({ verified: false, manualReview: true, reason: "contested" });
+  }
+
   // ── Read the proof out of the private bucket ────────────────────────────────
   let base64: string;
   let mediaType: string;
@@ -127,6 +136,13 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (updateError) {
+    // Another booking got CONFIRMED for this slot between our contested-check
+    // and this write — the partial overlap constraint (23P01) or the exact
+    // slot unique index (23505) rejects the second confirmation. Hand off to
+    // manual review rather than error out.
+    if (updateError.code === "23P01" || updateError.code === "23505") {
+      return NextResponse.json({ verified: false, manualReview: true, reason: "slot_taken" });
+    }
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
   if (!confirmed) {
