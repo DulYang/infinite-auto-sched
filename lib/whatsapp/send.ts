@@ -13,6 +13,18 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Bounded timeouts for every WAHA call. Node's fetch has no default timeout —
+// when the linked WhatsApp session is degraded (e.g. logged out, awaiting a
+// QR rescan), WAHA can hang on some endpoints instead of erroring fast (only
+// check-exists was observed to fail fast, with a 422; sendText was observed
+// to hang past 60s during exactly this scenario). The client-facing booking
+// flow awaits the payment-instructions send inline, so an unbounded hang
+// there stalls the booking form itself. These caps keep the worst case
+// bounded regardless of what WAHA does.
+const CHECK_TIMEOUT_MS = 8_000;
+const TYPING_TIMEOUT_MS = 6_000;
+const SEND_TIMEOUT_MS = 20_000;
+
 interface WahaConfig {
   normalizedBase: string;
   headers: Record<string, string>;
@@ -58,10 +70,20 @@ async function simulateTyping(
 ) {
   try {
     const body = JSON.stringify({ session, chatId });
-    await fetch(`${normalizedBase}/api/startTyping`, { method: "POST", headers, body });
+    await fetch(`${normalizedBase}/api/startTyping`, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(TYPING_TIMEOUT_MS),
+    });
     // ~1.5s base + ~15ms per character, capped at 5s, plus jitter.
     await sleep(Math.min(5000, 1500 + textLength * 15) + Math.random() * 1000);
-    await fetch(`${normalizedBase}/api/stopTyping`, { method: "POST", headers, body });
+    await fetch(`${normalizedBase}/api/stopTyping`, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(TYPING_TIMEOUT_MS),
+    });
   } catch {
     // Ignore — proceed straight to the send.
   }
@@ -87,7 +109,11 @@ async function checkNumberExists(
     const url = `${config.normalizedBase}/api/contacts/check-exists?phone=${encodeURIComponent(
       digits,
     )}&session=${encodeURIComponent(config.session)}`;
-    const res = await fetch(url, { method: "GET", headers: config.headers });
+    const res = await fetch(url, {
+      method: "GET",
+      headers: config.headers,
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    });
     if (!res.ok) return { exists: null };
     const data = (await res.json()) as { numberExists?: boolean; chatId?: string };
     if (typeof data?.numberExists !== "boolean") return { exists: null };
@@ -146,6 +172,7 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<Wha
       method: "POST",
       headers: config.headers,
       body: JSON.stringify({ session: config.session, chatId, text: body }),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
 
     if (!res.ok) {
