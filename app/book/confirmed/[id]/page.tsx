@@ -55,6 +55,18 @@ export default async function BookingConfirmedPage({
         </div>
       )}
 
+      {!isCancelled && (
+        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-center">
+          <p className="text-sm font-bold text-blue-900">
+            📱 Anda akan menerima pesan WhatsApp dari admin Infinite Courts di +628980072000.
+          </p>
+          <p className="mt-1 text-xs text-blue-800">
+            Jika Anda tidak menerima pesan, kemungkinan nomor WhatsApp yang Anda masukkan keliru —
+            silakan hubungi admin di nomor tersebut.
+          </p>
+        </div>
+      )}
+
       <dl className="mt-6 divide-y divide-neutral-200 rounded-lg border border-neutral-200 bg-white text-sm">
         <Row label="Lapangan" value={court?.name ?? "—"} />
         <Row label="Slot Waktu" value={slot?.label ?? "—"} />
