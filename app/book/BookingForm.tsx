@@ -39,6 +39,12 @@ export default function BookingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [returningClient, setReturningClient] = useState(false);
+  // 'idle' before any check; 'checking' while in flight; 'exists' confirmed
+  // on WhatsApp; 'not_found' confirmed NOT on WhatsApp (blocks submit);
+  // 'unknown' = WAHA unconfigured or check failed — never blocks (fail open).
+  const [waCheckStatus, setWaCheckStatus] = useState<
+    "idle" | "checking" | "exists" | "not_found" | "unknown"
+  >("idle");
 
   async function lookupReturningClient() {
     if (!isValidE164(clientPhone)) return;
@@ -55,6 +61,26 @@ export default function BookingForm() {
     } catch {
       // Lookup is a convenience only; ignore failures.
     }
+  }
+
+  // Verifies the number is actually registered on WhatsApp BEFORE the client
+  // submits. Catches typos immediately instead of the client finding out
+  // days later that they never got the admin's confirmation — and keeps
+  // mistyped numbers from ever reaching WAHA as a real send (a known
+  // anti-spam/ban trigger; see lib/whatsapp/send.ts).
+  async function checkWhatsAppNumber() {
+    if (!isValidE164(clientPhone)) return "unknown" as const;
+    setWaCheckStatus("checking");
+    let result: "exists" | "not_found" | "unknown" = "unknown";
+    try {
+      const res = await fetch(`/api/whatsapp/check-number?phone=${encodeURIComponent(clientPhone)}`);
+      const data = await res.json();
+      if (data?.status === "exists" || data?.status === "not_found") result = data.status;
+    } catch {
+      // fall through with "unknown"
+    }
+    setWaCheckStatus(result);
+    return result;
   }
 
   useEffect(() => {
@@ -150,6 +176,20 @@ export default function BookingForm() {
     }
     if (!isValidE164(clientPhone)) {
       setPhoneError(PHONE_FORMAT_ERROR);
+      return;
+    }
+
+    // The blur handler usually resolves this before the user reaches submit,
+    // but re-check inline for autofill/no-blur paths so a bad number can't
+    // slip through. Only a confirmed "not_found" blocks — "unknown"
+    // (WAHA down/unconfigured) always proceeds (fail open; the server
+    // re-checks with the same fail-open rule as a last resort anyway).
+    let waStatus = waCheckStatus;
+    if (waStatus === "idle" || waStatus === "checking") {
+      waStatus = await checkWhatsAppNumber();
+    }
+    if (waStatus === "not_found") {
+      setSubmitError("Nomor WhatsApp tidak ditemukan. Periksa kembali nomor Anda.");
       return;
     }
 
@@ -330,6 +370,7 @@ export default function BookingForm() {
               setClientPhone(e.target.value);
               setPhoneError(null);
               setReturningClient(false);
+              setWaCheckStatus("idle");
             }}
             onBlur={() => {
               if (clientPhone && !isValidE164(clientPhone)) {
@@ -337,11 +378,24 @@ export default function BookingForm() {
                 return;
               }
               lookupReturningClient();
+              checkWhatsAppNumber();
             }}
             placeholder="+6281234567890"
             className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
           />
           {phoneError && <p className="text-xs text-red-600 mt-1">{phoneError}</p>}
+          {waCheckStatus === "checking" && (
+            <p className="text-xs text-neutral-400 mt-1">Memeriksa nomor WhatsApp…</p>
+          )}
+          {waCheckStatus === "not_found" && (
+            <p className="text-xs text-red-600 mt-1">
+              Nomor ini tidak terdaftar di WhatsApp. Periksa kembali nomor Anda — admin akan
+              mengirim konfirmasi lewat WhatsApp ke nomor ini.
+            </p>
+          )}
+          {waCheckStatus === "exists" && (
+            <p className="text-xs text-emerald-600 mt-1">Nomor WhatsApp terverifikasi ✓</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="clientName">

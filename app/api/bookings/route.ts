@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/supabase/requireUser";
 import { isValidE164, PHONE_FORMAT_ERROR } from "@/lib/bookings/phone";
 import { writeAuditLog } from "@/lib/bookings/audit";
 import { notifyNewBooking } from "@/lib/whatsapp/notify";
+import { checkPhoneOnWhatsApp } from "@/lib/whatsapp/send";
 
 // The POST handler responds quickly, but notifyNewBooking schedules admin
 // WhatsApp alerts via after() with long randomized anti-ban gaps (up to
@@ -74,6 +75,20 @@ export async function POST(request: NextRequest) {
 
   if (!isValidE164(clientPhone)) {
     return NextResponse.json({ error: PHONE_FORMAT_ERROR }, { status: 400 });
+  }
+
+  // Defense in depth: the /book form already checks this before submitting,
+  // but re-check server-side so a bypassed/stale client can't slip a
+  // non-existent number into the system (it would eventually trigger a real
+  // WAHA send attempt — a known anti-spam/ban trigger). Only a DEFINITIVE
+  // "not on WhatsApp" blocks; null (WAHA unconfigured or check failed) is
+  // fail-open so bookings never break because the number-check is down.
+  const phoneExists = await checkPhoneOnWhatsApp(clientPhone);
+  if (phoneExists === false) {
+    return NextResponse.json(
+      { error: "Nomor WhatsApp tidak ditemukan. Periksa kembali nomor Anda." },
+      { status: 400 },
+    );
   }
 
   const today = new Date();

@@ -13,6 +13,37 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+interface WahaConfig {
+  normalizedBase: string;
+  headers: Record<string, string>;
+  session: string;
+}
+
+// Shared WAHA connection setup (base URL normalization + auth header) used by
+// both the send path and the standalone number-existence check. Returns null
+// when WAHA isn't configured — every caller treats that as "can't tell".
+function getWahaConfig(): WahaConfig | null {
+  const baseUrl = process.env.WAHA_BASE_URL;
+  if (!baseUrl) return null;
+  const apiKey = process.env.WAHA_API_KEY;
+  const session = process.env.WAHA_SESSION || "default";
+  // Tolerate a WAHA_BASE_URL set without a scheme (e.g. "waha.example.com"),
+  // which otherwise makes fetch() throw "Failed to parse URL". Default to
+  // https; strip any trailing slash.
+  const normalizedBase = (/^https?:\/\//i.test(baseUrl) ? baseUrl : `https://${baseUrl}`).replace(
+    /\/$/,
+    "",
+  );
+  return {
+    normalizedBase,
+    session,
+    headers: {
+      "Content-Type": "application/json",
+      ...(apiKey ? { "X-Api-Key": apiKey } : {}),
+    },
+  };
+}
+
 // Best-effort human-behavior simulation before a send, per WAHA's anti-ban
 // guidance (startTyping → pause scaled to message length → stopTyping →
 // send). Bot-like instant sends are one of the signals WhatsApp's anti-spam
@@ -45,20 +76,18 @@ async function simulateTyping(
 // IMPORTANT: `phone` must be digits only — a leading '+' makes WAHA 500.
 //
 // Returns true (exists), false (definitively not on WhatsApp), or null when we
-// can't tell (endpoint error / unreachable). Callers must only SKIP the send
-// on an explicit `false`; a null means "proceed, best effort" so a flaky check
-// never blocks a legitimate message.
+// can't tell (endpoint error / unreachable). Callers must only SKIP/REJECT
+// on an explicit `false`; a null means "proceed, best effort" so a flaky
+// check never blocks a legitimate message or booking.
 async function checkNumberExists(
-  normalizedBase: string,
-  headers: Record<string, string>,
-  session: string,
+  config: WahaConfig,
   digits: string,
 ): Promise<{ exists: boolean | null; chatId?: string }> {
   try {
-    const url = `${normalizedBase}/api/contacts/check-exists?phone=${encodeURIComponent(
+    const url = `${config.normalizedBase}/api/contacts/check-exists?phone=${encodeURIComponent(
       digits,
-    )}&session=${encodeURIComponent(session)}`;
-    const res = await fetch(url, { method: "GET", headers });
+    )}&session=${encodeURIComponent(config.session)}`;
+    const res = await fetch(url, { method: "GET", headers: config.headers });
     if (!res.ok) return { exists: null };
     const data = (await res.json()) as { numberExists?: boolean; chatId?: string };
     if (typeof data?.numberExists !== "boolean") return { exists: null };
@@ -68,12 +97,24 @@ async function checkNumberExists(
   }
 }
 
-export async function sendWhatsAppMessage(to: string, body: string): Promise<WhatsAppSendResult> {
-  const baseUrl = process.env.WAHA_BASE_URL;
-  const apiKey = process.env.WAHA_API_KEY;
-  const session = process.env.WAHA_SESSION || "default";
+// Public, standalone version of the same check — used to validate a client's
+// WhatsApp number at BOOKING time (before a booking is even created), not
+// just right before a send. Returns true/false/null (tri-state: null means
+// WAHA isn't configured or the check failed, so callers should not block on
+// it — same fail-open rule as above).
+export async function checkPhoneOnWhatsApp(phone: string): Promise<boolean | null> {
+  const config = getWahaConfig();
+  if (!config) return null;
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return null;
+  const { exists } = await checkNumberExists(config, digits);
+  return exists;
+}
 
-  if (!baseUrl) {
+export async function sendWhatsAppMessage(to: string, body: string): Promise<WhatsAppSendResult> {
+  const config = getWahaConfig();
+
+  if (!config) {
     // No WAHA instance configured yet. The admin already reviewed and
     // approved the draft by clicking Send, so we log it as sent (copy-paste
     // / manual-send fallback described in docs/ARCHITECTURE.md).
@@ -85,23 +126,10 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<Wha
     const digits = to.replace(/\D/g, "");
     let chatId = `${digits}@c.us`;
 
-    // Tolerate a WAHA_BASE_URL set without a scheme (e.g. "waha.example.com"),
-    // which otherwise makes fetch() throw "Failed to parse URL". Default to
-    // https; strip any trailing slash.
-    const normalizedBase = (/^https?:\/\//i.test(baseUrl) ? baseUrl : `https://${baseUrl}`).replace(
-      /\/$/,
-      "",
-    );
-
-    const headers = {
-      "Content-Type": "application/json",
-      ...(apiKey ? { "X-Api-Key": apiKey } : {}),
-    };
-
     // Bail out BEFORE sending if the number isn't on WhatsApp — this is the
     // anti-ban guard for mistyped client numbers. Only a definitive `false`
     // skips; an unknown result proceeds (best effort).
-    const check = await checkNumberExists(normalizedBase, headers, session, digits);
+    const check = await checkNumberExists(config, digits);
     if (check.exists === false) {
       return {
         ok: false,
@@ -112,12 +140,12 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<Wha
     // Prefer the canonical chatId WAHA resolved for us, when available.
     if (check.chatId) chatId = check.chatId;
 
-    await simulateTyping(normalizedBase, headers, session, chatId, body.length);
+    await simulateTyping(config.normalizedBase, config.headers, config.session, chatId, body.length);
 
-    const res = await fetch(`${normalizedBase}/api/sendText`, {
+    const res = await fetch(`${config.normalizedBase}/api/sendText`, {
       method: "POST",
-      headers,
-      body: JSON.stringify({ session, chatId, text: body }),
+      headers: config.headers,
+      body: JSON.stringify({ session: config.session, chatId, text: body }),
     });
 
     if (!res.ok) {
