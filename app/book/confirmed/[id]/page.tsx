@@ -36,8 +36,11 @@ export default async function BookingConfirmedPage({
   const isCancelled = booking.status === "cancelled";
   // Admin WhatsApp number shown to the client so a mistyped WA number is
   // caught (no message => mismatch, contact admin). Configurable via env;
-  // falls back to the known number if unset.
-  const adminWaDisplay = process.env.ADMIN_WA_DISPLAY || "+628980072000";
+  // falls back to the known number if unset. Normalized to always show a
+  // leading '+' regardless of how the env var is formatted (observed in
+  // testing: ADMIN_WA_DISPLAY was set on Vercel without one).
+  const adminWaRaw = process.env.ADMIN_WA_DISPLAY || "+628980072000";
+  const adminWaDisplay = adminWaRaw.startsWith("+") ? adminWaRaw : `+${adminWaRaw.replace(/\D/g, "")}`;
 
   // A wa.me deep link inviting the client to message the admin's WhatsApp
   // FIRST. WAHA's anti-ban guidance says bots should only reply to messages
