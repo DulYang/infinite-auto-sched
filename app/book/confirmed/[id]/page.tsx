@@ -35,9 +35,26 @@ export default async function BookingConfirmedPage({
 
   const isCancelled = booking.status === "cancelled";
   // Admin WhatsApp number shown to the client so a mistyped WA number is
-  // caught (no message => wrong number, contact admin). Configurable via env;
+  // caught (no message => mismatch, contact admin). Configurable via env;
   // falls back to the known number if unset.
   const adminWaDisplay = process.env.ADMIN_WA_DISPLAY || "+628980072000";
+
+  // A wa.me deep link inviting the client to message the admin's WhatsApp
+  // FIRST. WAHA's anti-ban guidance says bots should only reply to messages
+  // that were already received, not cold-initiate — but our automatic
+  // payment-instructions/confirmation messages are inherently
+  // business-initiated (the client never messages us first through a normal
+  // web booking flow). Encouraging an inbound "hello" here turns the
+  // resulting chat into a real back-and-forth rather than one-sided
+  // outbound traffic, which is the single biggest anti-ban lever available
+  // without gating the automatic send behind waiting for a reply (a bigger
+  // redesign this doesn't attempt). Prefilled with real context so the
+  // message is relevant, not spam-shaped.
+  const waDigits = adminWaDisplay.replace(/\D/g, "");
+  const waGreeting = `Halo, saya baru saja memesan ${court?.name ?? "lapangan"} pada ${formatDisplayDate(
+    booking.booking_date,
+  )}${slot ? ` pukul ${formatTime(slot.start_time)}` : ""} atas nama ${booking.client_name}.`;
+  const waMeLink = `https://wa.me/${waDigits}?text=${encodeURIComponent(waGreeting)}`;
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6 sm:py-10">
@@ -68,6 +85,14 @@ export default async function BookingConfirmedPage({
             Jika Anda tidak menerima pesan, kemungkinan nomor WhatsApp yang Anda masukkan keliru —
             silakan hubungi admin di nomor tersebut.
           </p>
+          <a
+            href={waMeLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            💬 Sapa Kami di WhatsApp
+          </a>
         </div>
       )}
 

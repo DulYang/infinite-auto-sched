@@ -22,6 +22,7 @@ function sleep(ms: number) {
 // there stalls the booking form itself. These caps keep the worst case
 // bounded regardless of what WAHA does.
 const CHECK_TIMEOUT_MS = 8_000;
+const SEEN_TIMEOUT_MS = 6_000;
 const TYPING_TIMEOUT_MS = 6_000;
 const SEND_TIMEOUT_MS = 20_000;
 
@@ -54,6 +55,30 @@ function getWahaConfig(): WahaConfig | null {
       ...(apiKey ? { "X-Api-Key": apiKey } : {}),
     },
   };
+}
+
+// Marks the chat as read before we send — WAHA's anti-ban guidance calls
+// this out explicitly as the first step before replying. With no messageId
+// given, WAHA marks the whole chat's unread messages as read (up to 7 days
+// back), which is exactly what a human opening the chat before typing a
+// reply would trigger. Best-effort: a chat with nothing unread (the common
+// case for a brand-new client number) is a harmless no-op either way.
+async function sendSeen(
+  normalizedBase: string,
+  headers: Record<string, string>,
+  session: string,
+  chatId: string,
+) {
+  try {
+    await fetch(`${normalizedBase}/api/sendSeen`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ session, chatId }),
+      signal: AbortSignal.timeout(SEEN_TIMEOUT_MS),
+    });
+  } catch {
+    // Ignore — proceed to typing simulation / send regardless.
+  }
 }
 
 // Best-effort human-behavior simulation before a send, per WAHA's anti-ban
@@ -166,6 +191,8 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<Wha
     // Prefer the canonical chatId WAHA resolved for us, when available.
     if (check.chatId) chatId = check.chatId;
 
+    // Human sequence before every send: mark seen, then type, then send.
+    await sendSeen(config.normalizedBase, config.headers, config.session, chatId);
     await simulateTyping(config.normalizedBase, config.headers, config.session, chatId, body.length);
 
     const res = await fetch(`${config.normalizedBase}/api/sendText`, {

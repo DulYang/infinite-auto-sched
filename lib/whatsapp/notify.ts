@@ -14,17 +14,21 @@ function randBetween(minMs: number, maxMs: number) {
   return minMs + Math.floor(Math.random() * (maxMs - minMs));
 }
 
-// Gap before each ADMIN send. WAHA's anti-ban guidance is a random 30–60s
-// between consecutive messages; the number was banned once for "suspicious
-// spamming" while we sent with a 1.5s gap, so admin alerts now go out with
-// long randomized spacing. (The tiny gap also once triggered a burst 403
-// from WAHA/WAF — this supersedes that fix.) The delays run AFTER the HTTP
-// response via next/server `after()`, so the booking flow is never slowed.
-const ADMIN_GAP_MIN_MS = 25_000;
-const ADMIN_GAP_MAX_MS = 45_000;
+// Gap before each ADMIN send. WAHA's documented anti-ban guidance is
+// explicit: "wait a random time between 30 and 60 seconds" between
+// consecutive messages — not a fixed interval, even for routine
+// confirmations. The number was banned once for "suspicious spamming"
+// while we sent with a fixed 1.5s gap; admin alerts now go out with
+// randomized spacing matching that exact window. The delays run AFTER the
+// HTTP response via next/server `after()`, so the booking flow is never
+// slowed by them.
+const ADMIN_GAP_MIN_MS = 30_000;
+const ADMIN_GAP_MAX_MS = 60_000;
 // If many admin numbers are configured, shrink the gaps so the total stays
 // inside the function's execution budget (see maxDuration on the route).
-const ADMIN_TOTAL_BUDGET_MS = 100_000;
+// Sized so 1-2 admins (the common case) get the full 30-60s window; only
+// 3+ admins compress it.
+const ADMIN_TOTAL_BUDGET_MS = 150_000;
 
 // Fires the two automatic notifications for a freshly-created booking.
 // PRIORITY ORDER (deliberate):

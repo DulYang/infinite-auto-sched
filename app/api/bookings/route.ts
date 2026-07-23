@@ -7,10 +7,16 @@ import { notifyNewBooking } from "@/lib/whatsapp/notify";
 import { checkPhoneOnWhatsApp } from "@/lib/whatsapp/send";
 
 // The POST handler responds quickly, but notifyNewBooking schedules admin
-// WhatsApp alerts via after() with long randomized anti-ban gaps (up to
-// ~100s total) that run past the response — the function must stay alive
-// for them. See lib/whatsapp/notify.ts.
-export const maxDuration = 180;
+// WhatsApp alerts via after() with long randomized anti-ban gaps (30-60s
+// per admin, per WAHA's documented guidance) that run past the response —
+// the function must stay alive for them. Sized with headroom for the worst
+// case where every WAHA call times out on a degraded session: a single
+// send can cost up to ~52s then (check-exists 8s + sendSeen 6s + typing
+// up to 18s + sendText 20s). With 2 admin numbers configured, worst case
+// is client(52s) + 2*(60s gap + 52s send) = ~276s — close enough to the
+// old 180s cap that it needed real headroom, not just a bump. See
+// lib/whatsapp/notify.ts and lib/whatsapp/send.ts for the per-call caps.
+export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   const user = await requireUser();
