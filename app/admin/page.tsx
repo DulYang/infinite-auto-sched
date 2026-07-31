@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import AdminDashboard from "./AdminDashboard";
 import AuditLogViewer from "./AuditLogViewer";
 import DailyReport from "./DailyReport";
+import ScheduleView from "./ScheduleView";
 import SignOutButton from "./SignOutButton";
 
 export default async function AdminPage() {
@@ -30,6 +31,7 @@ export default async function AdminPage() {
         </div>
       </div>
       <DailyReport />
+      <ScheduleView />
       <AdminDashboard />
       <AuditLogViewer />
     </div>
