@@ -32,6 +32,7 @@ export const AUDIT_LABELS: Record<string, string> = {
   "receipt.uploaded": "Bukti pembayaran diunggah",
   "receipt.verified": "Bukti pembayaran terverifikasi otomatis",
   "receipt.verification_failed": "Verifikasi bukti otomatis gagal",
+  "receipt.verification_error": "Verifikasi bukti otomatis error (teknis)",
 };
 
 export function labelForAction(action: string): string {

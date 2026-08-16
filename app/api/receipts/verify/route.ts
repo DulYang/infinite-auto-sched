@@ -77,18 +77,41 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Read the proof out of the private bucket ────────────────────────────────
+  // One retry: this is a single request-scoped hiccup (storage restart,
+  // transient network blip) away from silently falling back to manual review
+  // on an otherwise-valid receipt, so it's worth a second attempt before
+  // giving up.
   let base64: string;
   let mediaType: string;
   try {
-    const { data: blob, error: dlError } = await supabase.storage
-      .from("receipts")
-      .download(booking.receipt_path);
-    if (dlError || !blob) throw new Error(dlError?.message || "download failed");
+    base64 = "";
+    mediaType = "";
+    let lastError: unknown;
+    let downloaded = false;
+    for (let attempt = 0; attempt < 2 && !downloaded; attempt++) {
+      try {
+        const { data: blob, error: dlError } = await supabase.storage
+          .from("receipts")
+          .download(booking.receipt_path);
+        if (dlError || !blob) throw new Error(dlError?.message || "download failed");
 
-    mediaType = blob.type || mimeFromPath(booking.receipt_path);
-    const buf = Buffer.from(await blob.arrayBuffer());
-    base64 = buf.toString("base64");
-  } catch {
+        mediaType = blob.type || mimeFromPath(booking.receipt_path);
+        const buf = Buffer.from(await blob.arrayBuffer());
+        base64 = buf.toString("base64");
+        downloaded = true;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (!downloaded) throw lastError;
+  } catch (err) {
+    await writeAuditLog(supabase, {
+      action: "receipt.verification_error",
+      entityType: "booking",
+      entityId: booking.id,
+      details: { reason: "download_failed", error: err instanceof Error ? err.message : String(err) },
+      performedBy: "system",
+    });
     return NextResponse.json({ verified: false, manualReview: true, reason: "download_failed" });
   }
 
@@ -98,8 +121,18 @@ export async function POST(request: NextRequest) {
   let result;
   let extracted;
   try {
-    extracted = await extractReceiptFields(base64, mediaType);
-    result = validateReceipt(extracted, {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        extracted = await extractReceiptFields(base64, mediaType);
+        lastError = undefined;
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (lastError) throw lastError;
+    result = validateReceipt(extracted!, {
       amountDue: booking.amount_due,
       accountNumber,
       accountName,
@@ -107,8 +140,15 @@ export async function POST(request: NextRequest) {
       earliestDate: earliest <= today ? earliest : today,
       latestDate: today,
     });
-  } catch {
+  } catch (err) {
     // Vision/transport failure — never block the client, fall back to admin.
+    await writeAuditLog(supabase, {
+      action: "receipt.verification_error",
+      entityType: "booking",
+      entityId: booking.id,
+      details: { reason: "ocr_error", error: err instanceof Error ? err.message : String(err) },
+      performedBy: "system",
+    });
     return NextResponse.json({ verified: false, manualReview: true, reason: "ocr_error" });
   }
 
