@@ -179,22 +179,27 @@ export default function BookingForm() {
       return;
     }
 
-    // The blur handler usually resolves this before the user reaches submit,
-    // but re-check inline for autofill/no-blur paths so a bad number can't
-    // slip through. Only a confirmed "not_found" blocks — "unknown"
-    // (WAHA down/unconfigured) always proceeds (fail open; the server
-    // re-checks with the same fail-open rule as a last resort anyway).
-    let waStatus = waCheckStatus;
-    if (waStatus === "idle" || waStatus === "checking") {
-      waStatus = await checkWhatsAppNumber();
-    }
-    if (waStatus === "not_found") {
-      setSubmitError("Nomor WhatsApp tidak ditemukan. Periksa kembali nomor Anda.");
-      return;
-    }
-
+    // Disable the button immediately — before the async WhatsApp-number
+    // check below — so a double-tap (common on mobile) can't slip a second
+    // submission through while that check is still in flight. Previously
+    // this was set only right before the POST, leaving a window where two
+    // taps could both pass validation and each create a booking.
     setSubmitting(true);
     try {
+      // The blur handler usually resolves this before the user reaches
+      // submit, but re-check inline for autofill/no-blur paths so a bad
+      // number can't slip through. Only a confirmed "not_found" blocks —
+      // "unknown" (WAHA down/unconfigured) always proceeds (fail open; the
+      // server re-checks with the same fail-open rule as a last resort).
+      let waStatus = waCheckStatus;
+      if (waStatus === "idle" || waStatus === "checking") {
+        waStatus = await checkWhatsAppNumber();
+      }
+      if (waStatus === "not_found") {
+        setSubmitError("Nomor WhatsApp tidak ditemukan. Periksa kembali nomor Anda.");
+        return;
+      }
+
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
