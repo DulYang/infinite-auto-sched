@@ -139,6 +139,12 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       );
     }
+    if (error.code === "BK001") {
+      return NextResponse.json(
+        { error: "Lapangan tutup pada waktu tersebut. Silakan pilih waktu lain." },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

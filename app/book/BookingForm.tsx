@@ -11,7 +11,7 @@ import { priceForMinutes, slotMinutes } from "@/lib/bookings/pricing";
 type LoadState = "loading" | "ready" | "error";
 // 'confirmed' -> taken (red, unavailable); 'pending' -> soft hold
 // ("Belum Konfirmasi", yellow, still pickable).
-type Range = { start: number; end: number; state: "confirmed" | "pending" };
+type Range = { start: number; end: number; state: "confirmed" | "pending" | "closed" };
 
 const OPEN_MIN = 8 * 60; // 08:00
 const CLOSE_MIN = 22 * 60; // 22:00
@@ -29,6 +29,7 @@ export default function BookingForm() {
   const [selectedSlotId, setSelectedSlotId] = useState<string>("");
 
   const [bookedRanges, setBookedRanges] = useState<Range[]>([]);
+  const [closureReasons, setClosureReasons] = useState<string[]>([]);
   const [rangesState, setRangesState] = useState<LoadState>("loading");
   const [rangesError, setRangesError] = useState<string | null>(null);
 
@@ -121,6 +122,7 @@ export default function BookingForm() {
       if (!res.ok) throw new Error("Gagal memuat jadwal hari itu.");
       const data = await res.json();
       setBookedRanges(data.ranges ?? []);
+      setClosureReasons(data.closureReasons ?? []);
       setRangesState("ready");
     } catch (err) {
       setRangesError(err instanceof Error ? err.message : "Terjadi kesalahan.");
@@ -144,7 +146,7 @@ export default function BookingForm() {
         const start = toMin(s.start_time);
         const end = toMin(s.end_time);
         const overlaps = bookedRanges.filter((r) => start < r.end && end > r.start);
-        const taken = overlaps.some((r) => r.state === "confirmed");
+        const taken = overlaps.some((r) => r.state === "confirmed" || r.state === "closed");
         const pending = !taken && overlaps.some((r) => r.state === "pending");
         return { slot: s, taken, pending };
       })
@@ -335,6 +337,12 @@ export default function BookingForm() {
                     </option>
                   ))}
                 </select>
+              )}
+              {rangesState === "ready" && bookedRanges.some((r) => r.state === "closed") && (
+                <p className="text-xs text-neutral-600 mt-1">
+                  Lapangan tutup pada sebagian/seluruh jam di tanggal ini
+                  {closureReasons.length > 0 ? ` (${closureReasons.join(", ")})` : ""}.
+                </p>
               )}
               {rangesState === "ready" && availableOptions.length === 0 && (
                 <p className="text-xs text-amber-700 mt-1">
@@ -530,6 +538,15 @@ function ClockDiagram({
             <path key={`c${idx}`} d={arc(c.start, c.end, R)} fill="none" stroke="#f87171" strokeWidth={W - 2} />
           );
         })}
+        {/* admin closures (rented out / time off): grey */}
+        {booked.map((r, idx) => {
+          if (r.state !== "closed") return null;
+          const c = clamp(r);
+          if (c.end <= c.start) return null;
+          return (
+            <path key={`x${idx}`} d={arc(c.start, c.end, R)} fill="none" stroke="#a3a3a3" strokeWidth={W - 2} />
+          );
+        })}
         {/* selection: blue */}
         {selected && (
           <path
@@ -574,6 +591,9 @@ function ClockDiagram({
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#facc15]" /> Belum Konfirmasi
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#a3a3a3]" /> Ditutup
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 rounded-full border border-neutral-300 bg-white" /> Tutup

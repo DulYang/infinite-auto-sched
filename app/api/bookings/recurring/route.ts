@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       // Slot already taken that week — skip it.
-      if (error.code === "23505" || error.code === "23P01") {
+      if (error.code === "23505" || error.code === "23P01" || error.code === "BK001") {
         skipped.push(bookingDate);
         continue;
       }

@@ -138,6 +138,12 @@ export async function PATCH(
       .single();
 
     if (error) {
+      if (error.code === "BK001") {
+        return NextResponse.json(
+          { error: "Lapangan tutup pada waktu tujuan. Silakan pilih waktu lain." },
+          { status: 409 },
+        );
+      }
       if (error.code === "23505" || error.code === "23P01") {
         return NextResponse.json(
           { error: "Slot tujuan sudah terisi. Silakan pilih slot lain." },

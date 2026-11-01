@@ -38,6 +38,24 @@ export async function GET(request: NextRequest) {
   }
 
   const takenSlotIds = (takenRes.data ?? []).map((row: { slot_id: string }) => row.slot_id);
+
+  // Admin-set closures also make overlapping slots unavailable.
+  const [blockedRes, slotsRes] = await Promise.all([
+    supabase.rpc("blocked_ranges", { p_date: date }),
+    supabase.from("time_slots").select("id, start_time, end_time"),
+  ]);
+  const blocked = (blockedRes.data ?? []) as { start_min: number; end_min: number }[];
+  const toMin = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  for (const s of slotsRes.data ?? []) {
+    const a = toMin(s.start_time);
+    const b = toMin(s.end_time);
+    if (blocked.some((r) => a < r.end_min && b > r.start_min) && !takenSlotIds.includes(s.id)) {
+      takenSlotIds.push(s.id);
+    }
+  }
   const pendingSlotIds = (pendingRes.data ?? []).map((row: { slot_id: string }) => row.slot_id);
   return NextResponse.json({ takenSlotIds, pendingSlotIds });
 }

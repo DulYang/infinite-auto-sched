@@ -209,7 +209,7 @@ export default function RecurringBookingForm({ onCreated }: { onCreated: () => v
               {result.skipped.length > 0 && (
                 <>
                   {" "}
-                  {result.skipped.length} dilewati karena slot sudah terisi:{" "}
+                  {result.skipped.length} dilewati karena slot sudah terisi atau lapangan tutup:{" "}
                   {result.skipped.map((d) => formatDisplayDate(d)).join(", ")}.
                 </>
               )}
